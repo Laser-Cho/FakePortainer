@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  fake-portainer-host:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fake-portainer-host:latest
+    container_name: fake-portainer-host
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

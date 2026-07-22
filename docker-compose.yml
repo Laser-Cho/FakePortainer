@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: ./Agent
+      dockerfile: Dockerfile
+    image: fake-portainer-agent:latest
+    container_name: fake-portainer-agent
+    restart: always
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=9000
+      - AGENT_SECRET_TOKEN=your_secure_agent_token
+
+  host:
+    build:
+      context: ./Host
+      dockerfile: Dockerfile
+    image: fake-portainer-host:latest
+    container_name: fake-portainer-host
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - agent
