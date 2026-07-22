@@ -1,7 +1,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+# Bypass SSL verification for restricted proxy/network environments
+RUN npm config set strict-ssl false && npm install --strict-ssl=false
 COPY . .
 RUN npm run build
 

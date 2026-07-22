@@ -25,6 +25,10 @@ docker build -t fake-portainer-agent:latest ./Agent
 docker build -t fake-portainer-host:latest ./Host
 ```
 
+> [!NOTE]
+> 폐쇄망 또는 프록시/사설 CA 환경에서 `registry.npmjs.org` SSL 검증 차단 문제를 방지하기 위해, 모든 Dockerfile의 `npm install` 명령에 `npm config set strict-ssl false` 및 `--strict-ssl=false` 옵션이 적용되어 있습니다.
+
+
 ---
 
 ## 🐳 3. Docker Run 직접 실행 방법

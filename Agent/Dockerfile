@@ -3,7 +3,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+# Bypass SSL verification for restricted proxy/network environments
+RUN npm config set strict-ssl false && npm install --strict-ssl=false --production
 
 COPY . .
 
