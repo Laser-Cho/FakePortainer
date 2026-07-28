@@ -15,7 +15,10 @@
 1. **Docker 데몬 연동:**
    - Node.js `dockerode` 라이브러리를 사용하여 로컬 Docker 엔진과 연결
 2. **REST API 엔드포인트 구현:**
-   - `GET /api/containers` : 로컬 전체 컨테이너 목록 조회 (ID, 이름, 포트 매핑, 이미지, 상태 등)
+   - `GET /api/containers` : 로컬 전체 컨테이너 목록 및 상세 정보 반환
+     - 기본 정보: ID, Name, Image, Status, Created, Port Mappings
+     - **Docker Compose 정보**: `composeFile`, `composeProject`, `composeService` (라벨 파싱)
+     - **Docker Network 정보**: `networks` (연결된 네트워크명, internal IP, Gateway, MAC 주소)
    - `POST /api/containers/:id/start` : 컨테이너 시작
    - `POST /api/containers/:id/stop` : 컨테이너 중지
    - `POST /api/containers/:id/restart` : 컨테이너 재시작
@@ -23,9 +26,10 @@
    - `GET /api/images` : 로컬 Docker 이미지 목록 조회
    - `POST /api/images/prune` : 사용하지 않는 이미지(Dangling) 일괄 삭제
 3. **WebSocket 실시간 로그 스트리밍:**
-   - `/api/containers/:id/logs` 연결 시, 해당 컨테이너의 Docker 로그 스트림(`dockerode.getEvents` 또는 `container.logs`)을 읽어 클라이언트에 실시간 전송
+   - `/api/containers/:id/logs` 연결 시, 해당 컨테이너의 Docker 로그 스트림(`container.logs({ follow: true, stdout: true, stderr: true, tail: 200 })`)을 읽어 클라이언트에 실시간 전송
 4. **접근 제어 미들웨어:**
-   - 모든 REST 요청 및 WebSocket 연결 시 토큰 유효성 검사 적용
+   - 모든 REST 요청 및 WebSocket 연결 시 토큰 유효성 검사 적용 (`Authorization: Bearer <TOKEN>` 또는 `?token=<TOKEN>`)
+   - 기본 설정 토큰: `AGENT_SECRET_TOKEN=1` (환경변수로 변경 가능)
 
 ---
 
@@ -48,8 +52,8 @@ docker run -d \
   --name fake-portainer-agent \
   -p 9000:9000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -e AGENT_SECRET_TOKEN="your_secure_agent_token" \
-  fake-portainer-agent-image:latest
+  -e AGENT_SECRET_TOKEN="1" \
+  fake-portainer-agent:latest
 ```
 
 > [!NOTE]
@@ -60,7 +64,7 @@ docker run -d \
 ## 5. 보안 및 안전성 요구 조건
 - **Docker 소켓 권한 보호:**
   - `/var/run/docker.sock`에 접근할 수 있는 애플리케이션은 사실상 root 권한을 가지게 됩니다. 따라서 에이전트 포트(예: 9000)가 공인 IP를 통해 외부에 무방비로 노출되지 않도록 각별히 유의해야 합니다.
-- **인증 토큰(JWT/API Key) 검증:**
+- **인증 토큰 검증:**
   - 중앙 제어 호스트(HOST)에서 발급하거나 사전에 약속된 Bearer 토큰이 `Authorization` 헤더에 유효하게 포함되어 있는지 확인하는 미들웨어를 모든 라우트에 적용합니다.
 - **CORS 및 방화벽 설정:**
   - Express 설정 시 `cors` 옵션을 활용하여 중앙 제어 호스트(HOST)의 도메인 또는 IP만 통신할 수 있도록 제한합니다.

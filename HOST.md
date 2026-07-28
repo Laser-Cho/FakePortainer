@@ -5,66 +5,62 @@
 ---
 
 ## 1. 역할 및 목표
-- **통합 제어 타워:** 개별 서버(에이전트)들의 Docker 상태를 한눈에 파악할 수 있는 다크 모드 기반의 대시보드 UI를 제공합니다.
-- **사용자 인증 및 보안 관리:** 인가되지 않은 사용자의 접근을 차단하기 위한 인증 시스템을 갖추고, 에이전트와의 안전한 통신 채널을 관리합니다.
-- **프록시 및 데이터 취합:** 사용자의 요청을 알맞은 에이전트 API로 중계하고, 수신된 데이터를 가공하여 UI에 표출합니다.
+- **통합 제어 타워:** 개별 서버(에이전트)들의 Docker 상태 및 전체 클러스터 상태를 한눈에 파악할 수 있는 다크 모드 기반의 풀 파노라마 대시보드 UI를 제공합니다.
+- **사용자 인증 및 보안 관리:** 미인증 사용자의 접근을 차단하기 위한 환경변수 기반 풀스크린 로그인 화면 및 세션 쿠키 관리 기능을 제공합니다.
+- **프록시 및 데이터 취합:** 사용자의 요청을 알맞은 에이전트 API로 중계하고, 여러 에이전트로부터 수신된 데이터를 병렬 처리하여 표출합니다.
 
 ---
 
 ## 2. 핵심 기능 요구사항
-1. **중앙 대시보드:**
-   - 등록된 모든 에이전트 서버의 헬스 체크 및 연결 상태 표시
-   - 전체 컨테이너(실행 중/중지됨) 수 및 이미지 수 통합 요약
-2. **멀티 에이전트 관리:**
-   - 관리 대상 서버(에이전트)의 IP, 포트, 인증용 API 토큰 등을 등록/수정/삭제하는 기능
-   - `watch_list.txt` 파일 로딩 및 볼륨 마운트 연동으로 컨테이너 재빌드 없이 동적 서버 목록 반영 지원
-3. **통합 컨테이너 & 이미지 관리 UI:**
-   - 선택된 에이전트 서버의 컨테이너 목록 조회 (ID, 이름, 포트, 이미지, 상태)
-   - 컨테이너 제어 명령어(Start, Stop, Restart, Remove) 전달 인터페이스
-   - 선택된 에이전트 서버의 이미지 목록 조회 및 미사용 이미지(Dangling) 삭제 UI
-4. **실시간 로그 뷰어:**
+1. **사이드바 네비게이션 & 멀티 머신 뷰 (`Sidebar.tsx`):**
+   - 등록된 모든 에이전트 서버의 헬스 체크 및 연결 상태 표시 (온라인/오프라인 뱃지)
+   - 1-클릭 머신 전환 기능 및 노드 추가 모달 연결
+2. **전체 머신 통합 관제 (`All Nodes Cluster Overview`):**
+   - 모든 에이전트 노드의 데이터를 병렬(`Promise.all`) 수집하여 클러스터 전체의 컨테이너 현황을 하나의 대시보드에 통합 표출
+   - 각 컨테이너가 속한 머신 이름(`192.168.0.32`, `33`, `34` 등)을 파란색 배지로 표출하는 `Node / Machine` 컬럼 제공
+3. **상세 컨테이너 정보 표출:**
+   - **Docker Compose File 출처**: 컨테이너가 실행된 `docker-compose.yml` 파일명, 프로젝트명, 서비스명 표출 (보라색 배지)
+   - **Docker Network / Bridge**: 연결된 도커 브릿지 네트워크명 및 컨테이너 내부 IP 주소, 게이트웨이, MAC 주소 표출 (시안색 배지)
+4. **동적 `watch_list.txt` 관리:**
+   - 웹 UI에서 노드 추가/삭제 시 `POST /api/agents` 및 `DELETE /api/agents`를 통해 서버의 `watch_list.txt` 파일에 실시간 영구 동기화 (브라우저 `localStorage` 캐시 전면 제거)
+5. **실시간 터미널 로그 뷰어:**
    - WebSocket 클라이언트를 활용하여 에이전트로부터 전달되는 컨테이너의 실시간 터미널 로그 출력 모달 구현
-5. **보안 및 로그인 인증:**
+6. **보안 및 환경변수 로그인 인증:**
    - Docker Compose 환경변수(`ADMIN_USER`, `ADMIN_PASSWORD`) 기반 관리자 로그인 인증
    - 미인증 시 컨트롤 플레인 대시보드 전체 접근 강제 차단 (풀스크린 로그인 화면 게이트)
    - 인증 완료 시 세션 쿠키 발급 및 상단 Navbar 계정 정보(`User: admin`) / Logout 제어 지원
+7. **와이드스크린 반응형 풀 파노라마 UI:**
+   - 모니터 가로 해상도를 자동 인식하는 `max-w-[1920px]` 레이아웃 적용으로 수평 스크롤 없이 넓은 공간 활용
 
 ---
 
 ## 3. 기술 스택 및 구조
-- **Frontend:** Next.js (React) + Tailwind CSS + Shadcn UI (깔끔하고 세련된 다크 모드 기본 테마)
-- **Backend (Host Controller):** Node.js (Express 또는 Next.js API Routes)
-- **Database (선택):** 에이전트 정보 및 사용자 인증 정보 저장을 위한 경량 DB (SQLite, JSON 파일 등)
+- **Frontend:** Next.js (React) + TypeScript + Tailwind CSS + Lucide React (깔끔하고 세련된 다크 모드 기본 테마)
+- **Backend (Host Controller):** Next.js App Router API Routes (`/api/agents`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
+- **데이터 저장:** `watch_list.txt` (서버 주소 목록 마운트 연동) 및 세션 쿠키
 - **통신 클라이언트:** 
-  - REST API Client (`axios` 또는 `fetch`): 에이전트 제어용
-  - WebSocket Client: 실시간 로그 스트리밍 프록시 수신용
+  - REST API Client (`fetch`): 에이전트 제어 및 상태 수집용
+  - WebSocket Client: 실시간 로그 스트리밍 중계 수신용
 
 ---
 
-## 4. 구축 프로세스 (Phase별 연동 가이드)
+## 4. 구축 프로세스 (Phase별 완성 내역)
 
-### [Step 1] UI 및 프로젝트 셋업
-- `web/` 디렉토리에 Next.js 프로젝트를 초기화합니다.
-- Tailwind CSS와 Shadcn UI를 설치하고, 다크 모드를 기본 컬러 스키마로 적용합니다.
-- 기본적인 네비게이션바(에이전트 선택기 포함), 대시보드 레이아웃 컴포넌트를 구성합니다.
-
-### [Step 2] 에이전트 연동 API 클라이언트 구현
-- 호스트 백엔드에서 각 에이전트 API 서버로 통신할 때 사용할 공통 REST 클라이언트를 작성합니다.
-- 요청 헤더에 에이전트 검증용 보안 토큰(`Authorization: Bearer <Token>`)을 자동으로 첨부하도록 인터셉터를 설정합니다.
-
-### [Step 3] 통합 대시보드 및 리스트 테이블 UI
-- 에이전트 목록 API를 호출하여 상태를 바인딩하고 테이블(Table) 컴포넌트로 렌더링합니다.
-- 컨테이너의 상태(Running: Green, Stopped: Red 등)에 맞는 배지(Badge) UI를 적용합니다.
-
-### [Step 4] 실시간 로그 WebSocket 모달
-- Shadcn UI Dialog(모달)를 활용하여 로그 뷰어 창을 구성합니다.
-- 모달이 열릴 때 에이전트의 WebSocket 엔드포인트에 접속하여 실시간 스트림 데이터를 수집하고, 가상 터미널 라이브러리(예: `xterm.js` 또는 ANSI 컬러 지원 div)에 출력합니다.
+- [x] **[Phase 1] UI 및 프로젝트 셋업**: Next.js App Router 초기화, Tailwind CSS 다크 테마 및 Dockerfile 구성
+- [x] **[Phase 2] 에이전트 연동 API 클라이언트**: `src/lib/api.ts` 공통 통신 클라이언트 및 10초 주기 자동 헬스체크 구현
+- [x] **[Phase 3] 대시보드 테이블 UI**: `ContainerTable.tsx`, `ImageTable.tsx`, `Navbar.tsx` 구현
+- [x] **[Phase 4] 컨테이너 제어 인터페이스**: Start, Stop, Restart, Remove 제어 액션 구현
+- [x] **[Phase 5] 실시간 로그 WebSocket 모달**: `LogViewerModal.tsx` 터미널 스타일 로그 스트리밍 구현
+- [x] **[Phase 6] 이미지 관리 UI**: 로컬 이미지 목록 및 Dangling 이미지 Prune 구현
+- [x] **[Phase 7] 사용자 인증 및 멀티 에이전트 관리**: Agent 등록 모달 및 토큰 관리 구현
+- [x] **[Phase 8] watch_list.txt 동적 연동 & 도커 정보 확장**: `watch_list.txt` 영구 동기화, Docker Compose 출처 및 Docker Network/Bridge IP 표출, 와이드스크린 레이아웃 구현
+- [x] **[Phase 9] 환경변수 인증 게이트**: `ADMIN_USER`, `ADMIN_PASSWORD` 환경변수 로그인 및 강제 대시보드 잠금 구현
+- [x] **[Phase 10] 사이드바 & 클러스터 통합 뷰**: 좌측 네비게이션 `Sidebar.tsx` 및 `All Nodes Cluster` 통합 관제 뷰 구현
 
 ---
 
 ## 5. 보안 및 필수 운영 조건
 - **통신 암호화 및 토큰 보호:**
-  - 호스트와 에이전트 간의 모든 통신은 외부 탈취를 방지하기 위해 **HTTPS** 및 **WSS(Secure WebSocket)** 프로토콜을 사용하는 것을 권장합니다.
-  - 에이전트 접속용 API Key/Token은 호스트 환경변수(`.env`) 또는 안전하게 암호화된 DB에 저장되어야 하며, 프론트엔드 클라이언트에 그대로 노출되면 안 됩니다.
+  - 호스트와 에이전트 간 통신 시 보안 토큰(`Authorization: Bearer <TOKEN>`)을 사용하며, SSL/TLS 보안 프로토콜 사용을 권장합니다.
 - **명확한 에러 핸들링:**
-  - 에이전트 서버가 다운되거나 응답하지 않는 상황에 대해 프론트엔드에서 무한 로딩에 빠지지 않도록 적절한 Timeout 설정(예: 5초) 및 사용자 경고 토스트(Toast) 메시지 노출 처리를 수행해야 합니다.
+  - 에이전트 서버가 응답하지 않을 경우 5초 타임아웃 처리 및 사용자 경고 배너/토스트 메시지를 노출합니다.
