@@ -13,6 +13,13 @@ export interface ContainerPort {
   ip?: string;
 }
 
+export interface ContainerNetwork {
+  name: string;
+  ip?: string | null;
+  gateway?: string | null;
+  mac?: string | null;
+}
+
 export interface ContainerInfo {
   id: string;
   fullId: string;
@@ -22,6 +29,12 @@ export interface ContainerInfo {
   status: string;
   created: number;
   ports: ContainerPort[];
+  composeFile?: string | null;
+  composeProject?: string | null;
+  composeService?: string | null;
+  networks?: ContainerNetwork[];
+  agentName?: string;
+  agentUrl?: string;
 }
 
 export interface ImageInfo {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
 import ContainerTable from '../components/ContainerTable';
 import ImageTable from '../components/ImageTable';
 import LogViewerModal from '../components/LogViewerModal';
@@ -15,21 +16,37 @@ import {
   pruneImages,
   checkAgentHealth,
 } from '../lib/api';
-import { Server, Box, Layers, PlayCircle, StopCircle, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Server, Box, Layers, PlayCircle, StopCircle, RefreshCw, ShieldAlert, Trash2, PlusCircle } from 'lucide-react';
 
-const DEFAULT_AGENTS: AgentConfig[] = [
-  {
-    id: 'local-agent',
-    name: 'Local Host Engine',
-    url: 'http://localhost:9000',
-    token: 'your_secure_agent_token',
-    isOnline: false,
-  },
-];
+const DEFAULT_AGENTS: AgentConfig[] = [];
 
 export default function Home() {
-  const [agents, setAgents] = useState<AgentConfig[]>(DEFAULT_AGENTS);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('local-agent');
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+
+  // Fetch agents dynamically from watch_list.txt API route
+  const fetchWatchListAgents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const watchList: AgentConfig[] = data.agents || [];
+        setAgents(watchList);
+        if (watchList.length > 0) {
+          setSelectedAgentId((prev) => (prev && watchList.some((a) => a.id === prev) ? prev : watchList[0].id));
+        } else {
+          setSelectedAgentId('');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch watch list agents', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWatchListAgents();
+  }, [fetchWatchListAgents]);
+
   const [activeTab, setActiveTab] = useState<'containers' | 'images' | 'agents'>('containers');
 
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
@@ -37,70 +54,189 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Modals
+  // Modals & Auth State
   const [isAddAgentOpen, setIsAddAgentOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerInfo | null>(null);
+
+  // Initial Auth Check (/api/auth/me)
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated) {
+            setAuthToken('authenticated');
+            setCurrentUser(data.username || 'Admin');
+          }
+        }
+      } catch (e) {
+        console.error('Auth check error', e);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const handleLoginSuccess = (token: string, username: string) => {
+    setAuthToken(token);
+    setCurrentUser(username);
+    setIsLoginOpen(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    setAuthToken(null);
+    setCurrentUser(null);
+  };
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
 
-  // Health checks
-  const pingAgents = useCallback(async () => {
-    const updated = await Promise.all(
-      agents.map(async (ag) => {
-        const isOnline = await checkAgentHealth(ag);
-        return { ...ag, isOnline };
-      })
-    );
-    setAgents(updated);
-  }, [agents]);
-
+  // Health checks: Polling every 10 seconds without infinite re-render loops
   useEffect(() => {
-    pingAgents();
-    const interval = setInterval(pingAgents, 10000);
-    return () => clearInterval(interval);
+    let isMounted = true;
+
+    const checkHealth = async () => {
+      setAgents((currentAgents) => {
+        if (currentAgents.length === 0) return currentAgents;
+
+        Promise.all(
+          currentAgents.map(async (ag) => {
+            const isOnline = await checkAgentHealth(ag);
+            return { ...ag, isOnline };
+          })
+        ).then((updated) => {
+          if (!isMounted) return;
+          setAgents((latest) => {
+            const changed = latest.some(
+              (item, i) => updated[i] && item.isOnline !== updated[i].isOnline
+            );
+            if (!changed) return latest;
+            return latest.map((item, i) => ({
+              ...item,
+              isOnline: updated[i] ? updated[i].isOnline : item.isOnline,
+            }));
+          });
+        });
+
+        return currentAgents;
+      });
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  // Load container & image data
+  // Load container & image data for selected agent (or all nodes)
   const loadAgentData = useCallback(async () => {
-    if (!selectedAgent) return;
+    if (!selectedAgentId) {
+      setContainers([]);
+      setImages([]);
+      setErrorMsg('');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg('');
 
     try {
-      const [cList, iList] = await Promise.all([
-        fetchContainers(selectedAgent).catch((e) => {
-          setErrorMsg(e.message);
-          return [];
-        }),
-        fetchImages(selectedAgent).catch(() => []),
-      ]);
+      if (selectedAgentId === 'all') {
+        const targetAgents = agents.filter((a) => a.isOnline);
+        if (targetAgents.length === 0 && agents.length > 0) {
+          setErrorMsg('All registered agent nodes are currently offline.');
+          setContainers([]);
+          setImages([]);
+          setIsLoading(false);
+          return;
+        }
 
-      setContainers(cList);
-      setImages(iList);
+        const results = await Promise.all(
+          targetAgents.map(async (ag) => {
+            const [cList, iList] = await Promise.all([
+              fetchContainers(ag).catch(() => []),
+              fetchImages(ag).catch(() => []),
+            ]);
+            const taggedContainers = cList.map((c) => ({
+              ...c,
+              agentName: ag.name,
+              agentUrl: ag.url,
+            }));
+            return { containers: taggedContainers, images: iList };
+          })
+        );
+
+        const allContainers = results.flatMap((r) => r.containers);
+        const allImages = results.flatMap((r) => r.images);
+
+        setContainers(allContainers);
+        setImages(allImages);
+      } else {
+        const targetAgent = agents.find((a) => a.id === selectedAgentId);
+        if (!targetAgent) {
+          setContainers([]);
+          setImages([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const [cList, iList] = await Promise.all([
+          fetchContainers(targetAgent).catch((e) => {
+            setErrorMsg(e.message);
+            return [];
+          }),
+          fetchImages(targetAgent).catch(() => []),
+        ]);
+
+        const taggedContainers = cList.map((c) => ({
+          ...c,
+          agentName: targetAgent.name,
+          agentUrl: targetAgent.url,
+        }));
+
+        setContainers(taggedContainers);
+        setImages(iList);
+      }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to communicate with Agent');
+      setErrorMsg(err.message || 'Failed to communicate with Agent(s)');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAgent]);
+  }, [selectedAgentId, agents]);
 
   useEffect(() => {
-    loadAgentData();
-  }, [selectedAgentId, loadAgentData]);
+    if (selectedAgentId) {
+      loadAgentData();
+    }
+  }, [selectedAgentId]);
 
   // Container Actions
   const handleControlContainer = async (
     containerId: string,
     action: 'start' | 'stop' | 'restart' | 'remove'
   ) => {
-    if (!selectedAgent) return;
+    const targetContainer = containers.find((c) => c.id === containerId);
+    const targetAgent = targetContainer?.agentUrl
+      ? agents.find((a) => a.url === targetContainer.agentUrl) || selectedAgent
+      : selectedAgent;
+
+    if (!targetAgent) return;
     try {
-      await controlContainer(selectedAgent, containerId, action);
-      await loadAgentData();
-    } catch (err: any) {
-      alert(`Action error: ${err.message}`);
+      await controlContainer(targetAgent, containerId, action);
+      setTimeout(loadAgentData, 1000);
+    } catch (e: any) {
+      alert(`Action error: ${e.message}`);
     }
   };
 
@@ -117,14 +253,154 @@ export default function Home() {
     }
   };
 
-  const handleAddAgent = (newAgent: AgentConfig) => {
-    setAgents((prev) => [...prev, newAgent]);
-    setSelectedAgentId(newAgent.id);
+  const handleAddAgent = async (newAgent: AgentConfig) => {
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAgent.name,
+          url: newAgent.url,
+          token: newAgent.token,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updatedList: AgentConfig[] = data.agents || [];
+        setAgents(updatedList);
+        const added = updatedList.find((a) => a.url === newAgent.url.replace(/\/$/, '')) || updatedList[updatedList.length - 1];
+        if (added) {
+          setSelectedAgentId(added.id);
+        }
+      } else {
+        alert('Failed to add agent to watch_list.txt');
+      }
+    } catch (e: any) {
+      alert(`Add agent error: ${e.message}`);
+    }
+  };
+
+  const handleRemoveAgent = async (id: string) => {
+    const target = agents.find((a) => a.id === id);
+    if (!target) return;
+    if (!confirm(`Are you sure you want to remove ${target.name} from watch_list.txt?`)) return;
+
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: target.url, id }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updatedList: AgentConfig[] = data.agents || [];
+        setAgents(updatedList);
+        if (selectedAgentId === id) {
+          setSelectedAgentId(updatedList.length > 0 ? updatedList[0].id : '');
+        }
+      } else {
+        alert('Failed to remove agent from watch_list.txt');
+      }
+    } catch (e: any) {
+      alert(`Delete agent error: ${e.message}`);
+    }
   };
 
   const runningCount = containers.filter((c) => c.state === 'running').length;
   const stoppedCount = containers.filter((c) => c.state !== 'running').length;
   const onlineAgentsCount = agents.filter((a) => a.isOnline).length;
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 font-sans">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3" />
+        <span>Verifying Control Plane Authentication...</span>
+      </div>
+    );
+  }
+
+  if (!authToken) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-100 relative overflow-hidden select-none">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl z-10">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="bg-blue-600/20 p-2.5 rounded-xl border border-blue-500/30">
+              <Server className="w-7 h-7 text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-100">FakePortainer</h1>
+              <p className="text-xs text-slate-400">Control Plane Dashboard Login</p>
+            </div>
+          </div>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+              const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+              const errorEl = document.getElementById('login-error-msg');
+              if (errorEl) errorEl.innerText = '';
+
+              try {
+                const res = await fetch('/api/auth/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ username, password }),
+                });
+                const data = await res.json();
+                if (res.ok && data.token) {
+                  handleLoginSuccess(data.token, data.username || username);
+                } else {
+                  if (errorEl) errorEl.innerText = data.error || 'Invalid ID or Password';
+                }
+              } catch (err: any) {
+                if (errorEl) errorEl.innerText = err.message || 'Login failed';
+              }
+            }}
+            className="space-y-4"
+          >
+            <div id="login-error-msg" className="text-rose-400 text-xs font-semibold empty:hidden bg-rose-950/60 border border-rose-800/60 p-3 rounded-xl" />
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">ID (Username)</label>
+              <input
+                name="username"
+                type="text"
+                required
+                placeholder="Enter ADMIN_USER"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+              <input
+                name="password"
+                type="password"
+                required
+                placeholder="Enter ADMIN_PASSWORD"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm py-2.5 rounded-xl shadow-lg hover:shadow-blue-500/25 transition mt-2 flex items-center justify-center space-x-2"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>Sign In to Control Plane</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -134,11 +410,20 @@ export default function Home() {
         onSelectAgent={setSelectedAgentId}
         onOpenAddAgent={() => setIsAddAgentOpen(true)}
         isAuthenticated={!!authToken}
+        currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
-        onLogout={() => setAuthToken(null)}
+        onLogout={handleLogout}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
+      <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-h-[calc(100vh-61px)]">
+        <Sidebar
+          agents={agents}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={setSelectedAgentId}
+          onOpenAddAgent={() => setIsAddAgentOpen(true)}
+        />
+
+        <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8">
         {/* Error notification banner */}
         {errorMsg && (
           <div className="mb-6 bg-rose-950/70 border border-rose-800 text-rose-200 px-4 py-3 rounded-xl flex items-center justify-between text-sm shadow-md">
@@ -266,39 +551,70 @@ export default function Home() {
 
         {activeTab === 'agents' && (
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-            <div className="p-4 border-b border-slate-800 bg-slate-950/40 font-semibold text-slate-200">
-              Registered Agent Engine Nodes
+            <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between font-semibold text-slate-200">
+              <span>Registered Agent Engine Nodes</span>
+              <button
+                onClick={() => setIsAddAgentOpen(true)}
+                className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Add New Agent</span>
+              </button>
             </div>
             <div className="divide-y divide-slate-800">
-              {agents.map((ag) => (
-                <div key={ag.id} className="p-4 flex items-center justify-between hover:bg-slate-800/40 transition">
-                  <div>
-                    <h4 className="font-bold text-slate-100 text-sm flex items-center space-x-2">
-                      <span>{ag.name}</span>
-                      {ag.isOnline ? (
-                        <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded">
-                          Online
-                        </span>
-                      ) : (
-                        <span className="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-2 py-0.5 rounded">
-                          Offline
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">{ag.url}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedAgentId(ag.id)}
-                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700"
-                  >
-                    Select Node
-                  </button>
+              {agents.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm">
+                  <Server className="w-10 h-10 mx-auto mb-3 text-slate-600 opacity-60" />
+                  <p className="font-semibold text-slate-300">No Agent Nodes registered yet</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Click &apos;Add New Agent&apos; above or in the navigation bar to register your Docker agent.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                agents.map((ag) => (
+                  <div key={ag.id} className="p-4 flex items-center justify-between hover:bg-slate-800/40 transition">
+                    <div>
+                      <h4 className="font-bold text-slate-100 text-sm flex items-center space-x-2">
+                        <span>{ag.name}</span>
+                        {ag.isOnline ? (
+                          <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded">
+                            Online
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-2 py-0.5 rounded">
+                            Offline
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">{ag.url}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSelectedAgentId(ag.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${
+                          selectedAgentId === ag.id
+                            ? 'bg-blue-600 text-white border-blue-500'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                        }`}
+                      >
+                        {selectedAgentId === ag.id ? 'Active Node' : 'Select Node'}
+                      </button>
+                      <button
+                        onClick={() => handleRemoveAgent(ag.id)}
+                        className="text-xs p-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/50 rounded-lg transition"
+                        title="Remove Agent"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
       </main>
+      </div>
 
       {/* Modals */}
       <AgentModal
@@ -310,12 +626,16 @@ export default function Home() {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={(token) => setAuthToken(token)}
+        onLoginSuccess={handleLoginSuccess}
       />
 
       <LogViewerModal
         container={selectedLogContainer}
-        agent={selectedAgent}
+        agent={
+          selectedLogContainer?.agentUrl
+            ? agents.find((a) => a.url === selectedLogContainer.agentUrl) || selectedAgent
+            : selectedAgent
+        }
         onClose={() => setSelectedLogContainer(null)}
       />
     </div>

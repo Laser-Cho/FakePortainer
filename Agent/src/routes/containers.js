@@ -6,21 +6,40 @@ const { docker } = require('../docker');
 router.get('/', async (req, res) => {
   try {
     const containers = await docker.listContainers({ all: true });
-    const formatted = containers.map(c => ({
-      id: c.Id.substring(0, 12),
-      fullId: c.Id,
-      name: c.Names[0] ? c.Names[0].replace(/^\//, '') : 'unnamed',
-      image: c.Image,
-      state: c.State,
-      status: c.Status,
-      created: c.Created,
-      ports: (c.Ports || []).map(p => ({
-        privatePort: p.PrivatePort,
-        publicPort: p.PublicPort,
-        type: p.Type,
-        ip: p.IP
-      }))
-    }));
+    const formatted = containers.map(c => {
+      const labels = c.Labels || {};
+      const composeFile = labels['com.docker.compose.project.config_files'] || labels['com.docker.compose.project.working_dir'] || null;
+      const composeProject = labels['com.docker.compose.project'] || null;
+      const composeService = labels['com.docker.compose.service'] || null;
+
+      const networksObj = c.NetworkSettings ? c.NetworkSettings.Networks || {} : {};
+      const networks = Object.keys(networksObj).map(netName => ({
+        name: netName,
+        ip: networksObj[netName].IPAddress || null,
+        gateway: networksObj[netName].Gateway || null,
+        mac: networksObj[netName].MacAddress || null
+      }));
+
+      return {
+        id: c.Id.substring(0, 12),
+        fullId: c.Id,
+        name: c.Names[0] ? c.Names[0].replace(/^\//, '') : 'unnamed',
+        image: c.Image,
+        state: c.State,
+        status: c.Status,
+        created: c.Created,
+        ports: (c.Ports || []).map(p => ({
+          privatePort: p.PrivatePort,
+          publicPort: p.PublicPort,
+          type: p.Type,
+          ip: p.IP
+        })),
+        composeFile,
+        composeProject,
+        composeService,
+        networks
+      };
+    });
     res.json({ containers: formatted });
   } catch (err) {
     console.error('Error listing containers:', err.message);

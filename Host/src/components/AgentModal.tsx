@@ -12,8 +12,8 @@ interface AgentModalProps {
 
 export default function AgentModal({ isOpen, onClose, onAddAgent }: AgentModalProps) {
   const [name, setName] = useState('');
-  const [url, setUrl] = useState('http://localhost:9000');
-  const [token, setToken] = useState('your_secure_agent_token');
+  const [url, setUrl] = useState('');
+  const [token, setToken] = useState('');
 
   if (!isOpen) return null;
 

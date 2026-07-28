@@ -23,8 +23,12 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 export async function checkAgentHealth(agent: AgentConfig): Promise<boolean> {
   try {
     const res = await fetchWithTimeout(`${agent.url}/health`, {}, 3000);
+    if (!res.ok) {
+      console.warn(`[Agent Health Check Failed] ${agent.name} (${agent.url}): Status ${res.status}`);
+    }
     return res.ok;
-  } catch {
+  } catch (err: any) {
+    console.error(`[Agent Health Check Error] ${agent.name} (${agent.url}):`, err.message || err);
     return false;
   }
 }

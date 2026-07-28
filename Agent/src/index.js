@@ -17,6 +17,11 @@ const wss = new WebSocketServer({ server });
 
 const PORT = process.env.PORT || 9000;
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Private-Network', 'true');
+  console.log(`[Agent Request] ${req.method} ${req.url} from ${req.ip}`);
+  next();
+});
 app.use(cors());
 app.use(express.json());
 

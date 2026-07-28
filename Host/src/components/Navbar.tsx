@@ -10,6 +10,7 @@ interface NavbarProps {
   onSelectAgent: (id: string) => void;
   onOpenAddAgent: () => void;
   isAuthenticated: boolean;
+  currentUser?: string | null;
   onOpenLogin: () => void;
   onLogout: () => void;
 }
@@ -20,13 +21,15 @@ export default function Navbar({
   onSelectAgent,
   onOpenAddAgent,
   isAuthenticated,
+  currentUser,
   onOpenLogin,
   onLogout,
 }: NavbarProps) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
 
   return (
-    <nav className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between shadow-lg">
+    <nav className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 sm:px-6 md:px-8 py-3.5 shadow-lg">
+      <div className="max-w-[1920px] mx-auto flex items-center justify-between">
       <div className="flex items-center space-x-3">
         <div className="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
           <Server className="w-5 h-5 text-blue-400" />
@@ -47,11 +50,17 @@ export default function Navbar({
             onChange={(e) => onSelectAgent(e.target.value)}
             className="bg-transparent text-sm text-slate-200 focus:outline-none cursor-pointer pr-2"
           >
-            {agents.map((agent) => (
-              <option key={agent.id} value={agent.id} className="bg-slate-900 text-slate-200">
-                {agent.name} ({agent.url})
+            {agents.length === 0 ? (
+              <option value="" disabled className="bg-slate-900 text-slate-400">
+                No Agents Registered
               </option>
-            ))}
+            ) : (
+              agents.map((agent) => (
+                <option key={agent.id} value={agent.id} className="bg-slate-900 text-slate-200">
+                  {agent.name} ({agent.url})
+                </option>
+              ))
+            )}
           </select>
           {selectedAgent && (
             <span className="flex items-center text-xs ml-1">
@@ -79,13 +88,18 @@ export default function Navbar({
         <div className="h-5 w-px bg-slate-800" />
 
         {isAuthenticated ? (
-          <button
-            onClick={onLogout}
-            className="flex items-center space-x-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-900/50 px-3 py-1.5 rounded-lg transition"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md font-mono">
+              User: <strong className="text-blue-400 font-semibold">{currentUser || 'Admin'}</strong>
+            </span>
+            <button
+              onClick={onLogout}
+              className="flex items-center space-x-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-900/50 px-3 py-1.5 rounded-lg transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Logout</span>
+            </button>
+          </div>
         ) : (
           <button
             onClick={onOpenLogin}
@@ -95,6 +109,7 @@ export default function Navbar({
             <span>Login</span>
           </button>
         )}
+      </div>
       </div>
     </nav>
   );

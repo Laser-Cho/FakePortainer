@@ -2,7 +2,7 @@ const url = require('url');
 const jwt = require('jsonwebtoken');
 const { docker } = require('../docker');
 
-const AGENT_SECRET_TOKEN = process.env.AGENT_SECRET_TOKEN || 'your_secure_agent_token';
+const AGENT_SECRET_TOKEN = process.env.AGENT_SECRET_TOKEN || '1';
 
 function setupLogStreamWebSocket(wss) {
   wss.on('connection', async (ws, req) => {

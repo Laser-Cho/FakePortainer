@@ -11,6 +11,6 @@ COPY . .
 EXPOSE 9000
 
 ENV PORT=9000
-ENV AGENT_SECRET_TOKEN="your_secure_agent_token"
+ENV AGENT_SECRET_TOKEN="1"
 
 CMD ["npm", "start"]

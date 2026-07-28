@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ContainerInfo } from '../lib/types';
-import { Play, Square, RotateCw, Trash2, FileText, Box } from 'lucide-react';
+import { Play, Square, RotateCw, Trash2, FileText, Box, FileCode, Network, Server } from 'lucide-react';
 
 interface ContainerTableProps {
   containers: ContainerInfo[];
@@ -17,11 +17,13 @@ export default function ContainerTable({
   onControl,
   onOpenLogs,
 }: ContainerTableProps) {
+  const hasNodeColumn = containers.some((c) => !!c.agentName);
+
   if (isLoading) {
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-3" />
-        <p className="text-slate-400 text-sm">Fetching containers from agent...</p>
+        <p className="text-slate-400 text-sm">Fetching containers from agent engine...</p>
       </div>
     );
   }
@@ -43,8 +45,11 @@ export default function ContainerTable({
           <thead className="bg-slate-950/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
             <tr>
               <th className="px-6 py-4">Status</th>
+              {hasNodeColumn && <th className="px-6 py-4">Node / Machine</th>}
               <th className="px-6 py-4">Name</th>
               <th className="px-6 py-4">Image</th>
+              <th className="px-6 py-4">Docker Compose File</th>
+              <th className="px-6 py-4">Docker Network / Bridge</th>
               <th className="px-6 py-4">Ports</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
@@ -54,7 +59,7 @@ export default function ContainerTable({
               const isRunning = container.state === 'running';
 
               return (
-                <tr key={container.id} className="hover:bg-slate-800/50 transition">
+                <tr key={`${container.agentUrl || ''}-${container.id}`} className="hover:bg-slate-800/50 transition">
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
@@ -72,6 +77,15 @@ export default function ContainerTable({
                     </span>
                   </td>
 
+                  {hasNodeColumn && (
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center text-xs font-medium text-blue-300 bg-blue-950/60 border border-blue-800/60 px-2 py-0.5 rounded-md">
+                        <Server className="w-3.5 h-3.5 mr-1.5 text-blue-400 shrink-0" />
+                        <span>{container.agentName || 'Unknown Node'}</span>
+                      </span>
+                    </td>
+                  )}
+
                   <td className="px-6 py-4 font-semibold text-slate-100">
                     <div className="flex flex-col">
                       <span>{container.name}</span>
@@ -79,8 +93,62 @@ export default function ContainerTable({
                     </div>
                   </td>
 
-                  <td className="px-6 py-4 max-w-xs truncate text-slate-300 font-mono text-xs">
+                  <td className="px-6 py-4 text-slate-300 font-mono text-xs break-all">
                     {container.image}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    {container.composeFile ? (
+                      <div className="flex flex-col space-y-1">
+                        <span
+                          className="inline-flex items-center text-xs font-mono font-medium text-purple-300 bg-purple-950/60 border border-purple-800/60 px-2 py-0.5 rounded-md break-all"
+                          title={container.composeFile}
+                        >
+                          <FileCode className="w-3.5 h-3.5 mr-1.5 text-purple-400 shrink-0" />
+                          <span>{container.composeFile.split('/').pop() || container.composeFile}</span>
+                        </span>
+                        <div className="text-[10px] text-slate-400 flex items-center space-x-2">
+                          {container.composeProject && (
+                            <span>
+                              Project: <strong className="text-slate-300">{container.composeProject}</strong>
+                            </span>
+                          )}
+                          {container.composeService && (
+                            <span>
+                              Service: <strong className="text-slate-300">{container.composeService}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Standalone (docker run)</span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4 text-xs font-mono">
+                    {container.networks && container.networks.length > 0 ? (
+                      <div className="flex flex-col space-y-1">
+                        {container.networks.map((net, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center space-x-1.5"
+                            title={`Gateway: ${net.gateway || 'N/A'} | MAC: ${net.mac || 'N/A'}`}
+                          >
+                            <span className="inline-flex items-center text-[11px] font-medium text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-md">
+                              <Network className="w-3 h-3 mr-1 text-cyan-400 shrink-0" />
+                              <span>{net.name}</span>
+                            </span>
+                            {net.ip && (
+                              <span className="text-[11px] text-slate-300 font-mono">
+                                ({net.ip})
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 italic text-xs">-</span>
+                    )}
                   </td>
 
                   <td className="px-6 py-4 text-xs font-mono text-slate-400">

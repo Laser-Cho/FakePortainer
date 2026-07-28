@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-const AGENT_SECRET_TOKEN = process.env.AGENT_SECRET_TOKEN || 'your_secure_agent_token';
+const AGENT_SECRET_TOKEN = process.env.AGENT_SECRET_TOKEN || '1';
 
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;

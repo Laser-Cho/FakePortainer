@@ -24,6 +24,7 @@
   - `POST /api/containers/:id/stop` (컨테이너 중지)
   - `POST /api/containers/:id/restart` (컨테이너 재시작)
   - `DELETE /api/containers/:id` (컨테이너 삭제)
+- [x] **[기능 추가] Docker Compose 라벨 및 브릿지 네트워크 정보 추출**: `com.docker.compose.*` 라벨과 `NetworkSettings.Networks` 정보를 추출하여 각 컨테이너의 컴포즈 출처 및 연결된 도커 브릿지/네트워크 명, IP, 게이트웨이, MAC 주소 반환 기능 구현
 
 ### [Phase 5] 실시간 터미널 로그 스트리밍 (Completed: 2026-07-22)
 - [x] WebSocket 서버 핸들러 (`src/websocket/logs.js`) 작성

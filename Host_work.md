@@ -38,3 +38,30 @@
 ### [Phase 7] 사용자 인증 및 멀티 에이전트 관리 (Completed: 2026-07-22)
 - [x] 사용자 로그인 모달 (`src/components/LoginModal.tsx`) 및 JWT 토큰 관리
 - [x] 새로운 에이전트 노드 추가/등록 모달 (`src/components/AgentModal.tsx`)
+
+### [Phase 8] watch_list.txt 동적 연동 & 브라우저 캐시 전면 제거 (Completed: 2026-07-28)
+- [x] 비밀 토큰(`AGENT_SECRET_TOKEN`) 유연화 및 토큰 설정 개선
+- [x] 브라우저 `localStorage` 에이전트 목록 캐싱 제거 (하드코딩 IP 삭제 및 캐시 오염 방지)
+- [x] 실시간 `watch_list.txt` 파싱 백엔드 API (`GET /api/agents`) 작성 (`Cache-Control: no-store` 적용)
+- [x] Agent Nodes 탭 UI 개선 (개별 에이전트 노드 삭제 버튼 `Trash2` 및 Empty State 안내 컴포넌트 추가)
+- [x] `docker-compose.yml` 볼륨 마운트 (`./watch_list.txt:/app/watch_list.txt`) 구성하여 컨테이너 재빌드 없이 서버 주소 목록 동적 갱신 지원
+- [x] **[기능 개선] 웹 UI 기반 `watch_list.txt` 실시간 영구 동기화**: `POST /api/agents` 및 `DELETE /api/agents` 라우트 구현하여 웹페이지에서 노드 추가/삭제 시 실제로 `watch_list.txt` 파일에 즉시 반영 및 저장되도록 구현
+- [x] **[기능 추가] Docker Compose 파일 출처 표시 UI**: ContainerTable UI에 각 컨테이너가 어떤 `docker-compose.yml` 파일 및 프로젝트/서비스로부터 실행되었는지 표출하는 컬럼 및 보라색 배지 UI 구현
+- [x] **[기능 추가] Docker Network / Bridge 표시 UI**: ContainerTable UI에 각 컨테이너가 바인딩된 도커 브릿지/네트워크 이름, 컨테이너 할당 IP 주소, 게이트웨이 및 MAC 주소를 표출하는 시안(Cyan) 배지 UI 구현
+- [x] **[디자인 & 레이아웃 최적화] 와이드스크린 반응형 풀 파노라마 레이아웃**: 1280px(`max-w-7xl`) 폭 제약을 제거하고 모니터 가로 해상도를 자동 인식하는 `max-w-[1920px]` 레이아웃 적용. 테이블 셀의 자르기 제약을 풀어 수평 스크롤 없이 가로 공간을 시원하게 활용하도록 개선
+- [x] **[버그 수정]** `pingAgents` / `loadAgentData` 의존성 배열에 의한 초고속 무한 무한 재렌더링 루프 및 타임아웃 경고창 팝업 무한 연속 생성 문제 완전 해결
+
+### [Phase 9] 환경변수 기반 인증 & 대시보드 잠금 게이트 (Completed: 2026-07-28)
+- [x] Docker Compose 환경변수(`ADMIN_USER`, `ADMIN_PASSWORD`)를 통한 사용자 아이디/패스워드 동적 설정 지원
+- [x] 인증 백엔드 API 라우트 (`POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`) 및 암호화 세션 쿠키 구성
+- [x] 미인증 사용자의 대시보드 접근을 완벽 차단하는 풀스크린(Full-Screen) 로그인 게이트 UI 구현
+- [x] 상단 Navbar 사용자 정보 표시(`User: admin`) 및 세션 해제(Logout) 기능 연동
+
+### [Phase 10] 사이드바 네비게이션 & 전체 머신 통합 클러스터 뷰 (Completed: 2026-07-28)
+- [x] **[신규 컴포넌트] 좌측 사이드바 (`Sidebar.tsx`)**: 등록된 전체 머신 목록, 실시간 상태(온라인/오프라인 뱃지), 빠른 1-클릭 전환 및 노드 추가 버튼 제공
+- [x] **[신규 뷰 모드] All Nodes Cluster 통합 뷰**: `selectedAgentId === 'all'` 모드 구현하여 전체 등록 머신들의 컨테이너 현황을 병렬 수집 및 하나의 대시보드 테이블로 통합 표출
+- [x] **[UI 개선] Node / Machine 컬럼 추가**: 통합 뷰 모드 시 각 컨테이너가 어느 에이전트 머신(`192.168.0.32`, `33`, `34` 등)에서 돌아가는지 파란색 뱃지로 명확히 표출
+- [x] 통합 뷰 모드에서도 개별 컨테이너 동작(시작/중지/재시작/삭제) 및 터미널 로그 스트리밍을 해당 머신 에이전트와 정확히 자동 매칭하도록 처리
+
+
+
