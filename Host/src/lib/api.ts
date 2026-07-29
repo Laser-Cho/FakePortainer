@@ -1,7 +1,7 @@
 import { AgentConfig, ContainerInfo, ImageInfo } from './types';
 
-// Helper to send request with timeout & error handling
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
+// Helper to send request to Host Proxy Route
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -22,22 +22,37 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 
 export async function checkAgentHealth(agent: AgentConfig): Promise<boolean> {
   try {
-    const res = await fetchWithTimeout(`${agent.url}/health`, {}, 3000);
+    const res = await fetchWithTimeout('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentUrl: agent.url,
+        endpoint: '/health',
+        method: 'GET'
+      })
+    }, 5000);
     if (!res.ok) {
-      console.warn(`[Agent Health Check Failed] ${agent.name} (${agent.url}): Status ${res.status}`);
+      return false;
     }
-    return res.ok;
+    const data = await res.json();
+    return data.status === 'ok';
   } catch (err: any) {
-    console.error(`[Agent Health Check Error] ${agent.name} (${agent.url}):`, err.message || err);
     return false;
   }
 }
 
 export async function fetchContainers(agent: AgentConfig): Promise<ContainerInfo[]> {
-  const res = await fetchWithTimeout(`${agent.url}/api/containers`, {
-    headers: {
-      Authorization: `Bearer ${agent.token}`
-    }
+  const res = await fetchWithTimeout('/api/proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint: '/api/containers',
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -53,13 +68,19 @@ export async function controlContainer(
   action: 'start' | 'stop' | 'restart' | 'remove'
 ): Promise<void> {
   const method = action === 'remove' ? 'DELETE' : 'POST';
-  const url = `${agent.url}/api/containers/${containerId}/${action === 'remove' ? '' : action}`;
+  const endpoint = `/api/containers/${containerId}/${action === 'remove' ? '' : action}`;
 
-  const res = await fetchWithTimeout(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${agent.token}`
-    }
+  const res = await fetchWithTimeout('/api/proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint,
+      method,
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
   });
 
   if (!res.ok) {
@@ -69,10 +90,17 @@ export async function controlContainer(
 }
 
 export async function fetchImages(agent: AgentConfig): Promise<ImageInfo[]> {
-  const res = await fetchWithTimeout(`${agent.url}/api/images`, {
-    headers: {
-      Authorization: `Bearer ${agent.token}`
-    }
+  const res = await fetchWithTimeout('/api/proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint: '/api/images',
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -83,11 +111,17 @@ export async function fetchImages(agent: AgentConfig): Promise<ImageInfo[]> {
 }
 
 export async function pruneImages(agent: AgentConfig): Promise<{ imagesDeleted: any[]; spaceReclaimed: number }> {
-  const res = await fetchWithTimeout(`${agent.url}/api/images/prune`, {
+  const res = await fetchWithTimeout('/api/proxy', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${agent.token}`
-    }
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint: '/api/images/prune',
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

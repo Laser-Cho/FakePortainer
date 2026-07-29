@@ -18,7 +18,7 @@ function getWatchListFilePath(): string {
   return process.env.WATCH_LIST_PATH || '/app/watch_list.txt';
 }
 
-function parseAgentsFromFile(fileContent: string, serverHostIp: string): AgentConfig[] {
+function parseAgentsFromFile(fileContent: string): AgentConfig[] {
   const agents: AgentConfig[] = [];
   const defaultToken = process.env.DEFAULT_AGENT_TOKEN || '1';
 
@@ -58,11 +58,6 @@ function parseAgentsFromFile(fileContent: string, serverHostIp: string): AgentCo
       url = `http://${url}`;
     }
 
-    // Replace localhost with actual server Host IP for remote clients
-    if (serverHostIp && serverHostIp !== 'localhost' && serverHostIp !== '127.0.0.1') {
-      url = url.replace(/:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/, `://${serverHostIp}$2`);
-    }
-
     agents.push({
       id: `watch-agent-${index + 1}`,
       name,
@@ -76,9 +71,6 @@ function parseAgentsFromFile(fileContent: string, serverHostIp: string): AgentCo
 }
 
 export async function GET(request: Request) {
-  const hostHeader = request.headers.get('host') || '';
-  const serverHostIp = hostHeader.split(':')[0] || 'localhost';
-
   const filePath = getWatchListFilePath();
   let fileContent = '';
   if (fs.existsSync(filePath)) {
@@ -89,14 +81,11 @@ export async function GET(request: Request) {
     }
   }
 
-  const agents = parseAgentsFromFile(fileContent, serverHostIp);
+  const agents = parseAgentsFromFile(fileContent);
   return NextResponse.json({ agents }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
 }
 
 export async function POST(request: Request) {
-  const hostHeader = request.headers.get('host') || '';
-  const serverHostIp = hostHeader.split(':')[0] || 'localhost';
-
   try {
     const body = await request.json();
     const { name, url, token } = body;
@@ -142,7 +131,7 @@ export async function POST(request: Request) {
     }
 
     const updatedContent = fs.readFileSync(filePath, 'utf-8');
-    const agents = parseAgentsFromFile(updatedContent, serverHostIp);
+    const agents = parseAgentsFromFile(updatedContent);
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API POST Error]', err);
@@ -151,9 +140,6 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const hostHeader = request.headers.get('host') || '';
-  const serverHostIp = hostHeader.split(':')[0] || 'localhost';
-
   try {
     const body = await request.json();
     const { url, id } = body;
@@ -197,7 +183,7 @@ export async function DELETE(request: Request) {
     const newContent = filteredLines.join('\n').trim() + '\n';
     fs.writeFileSync(filePath, newContent, 'utf-8');
 
-    const agents = parseAgentsFromFile(newContent, serverHostIp);
+    const agents = parseAgentsFromFile(newContent);
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API DELETE Error]', err);

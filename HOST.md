@@ -7,7 +7,7 @@
 ## 1. 역할 및 목표
 - **통합 제어 타워:** 개별 서버(에이전트)들의 Docker 상태 및 전체 클러스터 상태를 한눈에 파악할 수 있는 다크 모드 기반의 풀 파노라마 대시보드 UI를 제공합니다.
 - **사용자 인증 및 보안 관리:** 미인증 사용자의 접근을 차단하기 위한 환경변수 기반 풀스크린 로그인 화면 및 세션 쿠키 관리 기능을 제공합니다.
-- **프록시 및 데이터 취합:** 사용자의 요청을 알맞은 에이전트 API로 중계하고, 여러 에이전트로부터 수신된 데이터를 병렬 처리하여 표출합니다.
+- **프록시 및 데이터 취합:** 사용자의 요청을 알맞은 에이전트 API로 중계(`POST /api/proxy`)하고, 여러 에이전트로부터 수신된 데이터를 병렬 처리하여 표출합니다.
 
 ---
 
@@ -29,17 +29,19 @@
    - Docker Compose 환경변수(`ADMIN_USER`, `ADMIN_PASSWORD`) 기반 관리자 로그인 인증
    - 미인증 시 컨트롤 플레인 대시보드 전체 접근 강제 차단 (풀스크린 로그인 화면 게이트)
    - 인증 완료 시 세션 쿠키 발급 및 상단 Navbar 계정 정보(`User: admin`) / Logout 제어 지원
-7. **와이드스크린 반응형 풀 파노라마 UI:**
+7. **Host 백엔드 프록시 (Proxy) 중계:**
+   - 외부 DDNS, 포트포워딩, 모바일 5G망 등 접속 환경에 제약받지 않도록 Host Node 백엔드(`POST /api/proxy`)가 가상머신 사설 IP로 직접 중계 통신 수행
+8. **와이드스크린 반응형 풀 파노라마 UI:**
    - 모니터 가로 해상도를 자동 인식하는 `max-w-[1920px]` 레이아웃 적용으로 수평 스크롤 없이 넓은 공간 활용
 
 ---
 
 ## 3. 기술 스택 및 구조
 - **Frontend:** Next.js (React) + TypeScript + Tailwind CSS + Lucide React (깔끔하고 세련된 다크 모드 기본 테마)
-- **Backend (Host Controller):** Next.js App Router API Routes (`/api/agents`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
+- **Backend (Host Controller):** Next.js App Router API Routes (`/api/proxy`, `/api/agents`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
 - **데이터 저장:** `watch_list.txt` (서버 주소 목록 마운트 연동) 및 세션 쿠키
 - **통신 클라이언트:** 
-  - REST API Client (`fetch`): 에이전트 제어 및 상태 수집용
+  - REST API Client (`fetch`): Host 백엔드 프록시 중계를 통한 에이전트 제어 및 상태 수집
   - WebSocket Client: 실시간 로그 스트리밍 중계 수신용
 
 ---
@@ -56,6 +58,7 @@
 - [x] **[Phase 8] watch_list.txt 동적 연동 & 도커 정보 확장**: `watch_list.txt` 영구 동기화, Docker Compose 출처 및 Docker Network/Bridge IP 표출, 와이드스크린 레이아웃 구현
 - [x] **[Phase 9] 환경변수 인증 게이트**: `ADMIN_USER`, `ADMIN_PASSWORD` 환경변수 로그인 및 강제 대시보드 잠금 구현
 - [x] **[Phase 10] 사이드바 & 클러스터 통합 뷰**: 좌측 네비게이션 `Sidebar.tsx` 및 `All Nodes Cluster` 통합 관제 뷰 구현
+- [x] **[Phase 11] Host 백엔드 프록시 (Proxy) 구조 적용**: 외부 DDNS 및 모바일 망 접속 시 사설 IP 통신 실패 문제를 차단하기 위해 Host 서버 백엔드 중계 방식 적용
 
 ---
 

@@ -23,15 +23,16 @@ Portainer와 유사한 경량 웹 기반 멀티 서버 Docker 컨테이너 관�
 6. **환경변수 기반 보안 인증:**
    - Docker Compose 환경변수(`ADMIN_USER`, `ADMIN_PASSWORD`) 기반 로그인 검증
    - 미인증 시 대시보드 전체 접근을 강제 차단하는 풀스크린 로그인 게이트 UI
-7. **동적 `watch_list.txt` 동기화:**
-   - 웹 UI에서 에이전트 노드 추가/삭제 시 `watch_list.txt` 파일에 실시간 영구 반영 (브라우저 `localStorage` 캐시 사용 안 함)
+7. **동적 `watch_list.txt` 동기화 & 백엔드 프록시 (Proxy) 중계:**
+   - 웹 UI에서 에이전트 노드 추가/삭제 시 `watch_list.txt` 파일에 실시간 영구 반영
+   - 외부 DDNS(`chcv2.iptime.org`) 및 모바일 5G망 접속 시에도 Host 백엔드 프록시(`POST /api/proxy`)가 내부망 사설 IP 통신을 대행하여 무조건 정상 작동 지원
 
 ---
 
 ## 🛠 기술 스택
 - **Backend (Agent):** Node.js (Express) + `dockerode` + WebSocket (`ws`)
 - **Frontend (Host Control Plane):** Next.js (React) + TypeScript + Tailwind CSS + Lucide React
-- **통신:** REST API (상태 조회 및 제어용), WebSocket (실시간 로그 스트리밍용)
+- **통신:** REST API (상태 조회 및 제어용, Host Proxy 중계), WebSocket (실시간 로그 스트리밍용)
 
 ---
 
@@ -46,3 +47,4 @@ Portainer와 유사한 경량 웹 기반 멀티 서버 Docker 컨테이너 관�
 - [x] **[Phase 8] watch_list.txt 동적 연동 & 도커 정보 확장**: `watch_list.txt` 영구 동기화, Docker Compose 파일 출처 및 Docker Network/Bridge IP 정보 표시, 와이드스크린 반응형 UI 적용
 - [x] **[Phase 9] 환경변수 기반 인증 게이트**: `ADMIN_USER`, `ADMIN_PASSWORD` 환경변수 연동 및 대시보드 강제 잠금 로그인 화면 구현
 - [x] **[Phase 10] 사이드바 & 클러스터 통합 뷰**: 좌측 네비게이션 사이드바 및 전체 머신 통합 관제 뷰 (`All Nodes Cluster`) 구현
+- [x] **[Phase 11] Host 백엔드 프록시 (Proxy) 중계 개편**: 외부 DDNS 및 모바일 망 접속 환경에서도 100% 에이전트 통신이 성공하도록 Host 백엔드 중계 방식 적용
