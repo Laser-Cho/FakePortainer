@@ -44,3 +44,16 @@ export interface ImageInfo {
   size: number;
   created: number;
 }
+
+export interface HistoryLogItem {
+  id: string;
+  timestamp: string;
+  agentName: string;
+  agentUrl: string;
+  containerId?: string;
+  containerName?: string;
+  actionType: 'START' | 'STOP' | 'RESTART' | 'DELETE' | 'PRUNE_IMAGES' | 'ADD_AGENT' | 'REMOVE_AGENT' | 'DETECTED_CHANGE' | string;
+  detail: string;
+  user?: string;
+}
+

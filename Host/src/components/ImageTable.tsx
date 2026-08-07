@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ImageInfo } from '../lib/types';
+import ConfirmModal from './ConfirmModal';
 import { Layers, Trash2 } from 'lucide-react';
 
 interface ImageTableProps {
@@ -11,6 +12,8 @@ interface ImageTableProps {
 }
 
 export default function ImageTable({ images, isLoading, onPrune }: ImageTableProps) {
+  const [isPruneModalOpen, setIsPruneModalOpen] = useState(false);
+
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -40,7 +43,7 @@ export default function ImageTable({ images, isLoading, onPrune }: ImageTablePro
         </div>
 
         <button
-          onClick={onPrune}
+          onClick={() => setIsPruneModalOpen(true)}
           className="flex items-center space-x-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-950/50 border border-rose-900/80 px-3 py-1.5 rounded-lg hover:bg-rose-900/60 transition"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -82,6 +85,19 @@ export default function ImageTable({ images, isLoading, onPrune }: ImageTablePro
           </table>
         </div>
       )}
+
+      {/* Prune Typing Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isPruneModalOpen}
+        onClose={() => setIsPruneModalOpen(false)}
+        onConfirm={onPrune}
+        actionType="prune"
+        title="Dangling 도커 이미지 일괄 삭제 확인"
+        description="미사용(Dangling) 상태의 모든 도커 이미지를 일괄 삭제합니다. 실수 삭제를 방지하기 위해 'prune'을 입력해 주세요."
+        confirmText="일괄 삭제 확정"
+        requireMatchText="prune"
+      />
     </div>
   );
 }
+

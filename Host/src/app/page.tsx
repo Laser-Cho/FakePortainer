@@ -20,11 +20,13 @@ import { Server, Box, Layers, PlayCircle, StopCircle, RefreshCw, ShieldAlert, Tr
 
 const DEFAULT_AGENTS: AgentConfig[] = [];
 
+import ServerLogModal from '../components/ServerLogModal';
+
 export default function Home() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
 
-  // Fetch agents dynamically from watch_list.txt API route
+  // Fetch agents dynamically from watch_list.txt / watch_list.bin API route
   const fetchWatchListAgents = useCallback(async () => {
     try {
       const res = await fetch('/api/agents', { cache: 'no-store' });
@@ -61,6 +63,35 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerInfo | null>(null);
+  const [serverLogAgent, setServerLogAgent] = useState<AgentConfig | null>(null);
+
+  // Helper to record audit history
+  const recordHistory = async (
+    agentName: string,
+    agentUrl: string,
+    actionType: string,
+    detail: string,
+    containerId?: string,
+    containerName?: string
+  ) => {
+    try {
+      await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentName,
+          agentUrl,
+          actionType,
+          detail,
+          containerId,
+          containerName,
+          user: currentUser || 'Admin',
+        }),
+      });
+    } catch (e) {
+      console.error('Failed to record history', e);
+    }
+  };
 
   // Initial Auth Check (/api/auth/me)
   useEffect(() => {
@@ -221,7 +252,7 @@ export default function Home() {
     }
   }, [selectedAgentId]);
 
-  // Container Actions
+  // Container Actions with History Recording
   const handleControlContainer = async (
     containerId: string,
     action: 'start' | 'stop' | 'restart' | 'remove'
@@ -234,19 +265,40 @@ export default function Home() {
     if (!targetAgent) return;
     try {
       await controlContainer(targetAgent, containerId, action);
+      
+      // Record in history log
+      const actionUpper = action.toUpperCase();
+      const containerName = targetContainer?.name || containerId;
+      await recordHistory(
+        targetAgent.name,
+        targetAgent.url,
+        actionUpper,
+        `Container '${containerName}' ${action}ed successfully on ${targetAgent.name}`,
+        containerId,
+        containerName
+      );
+
       setTimeout(loadAgentData, 1000);
     } catch (e: any) {
       alert(`Action error: ${e.message}`);
     }
   };
 
-  // Prune Images
+  // Prune Images with History Recording
   const handlePruneImages = async () => {
     if (!selectedAgent) return;
-    if (!confirm('Are you sure you want to delete all dangling (unused) images?')) return;
     try {
       const res = await pruneImages(selectedAgent);
-      alert(`Pruned successfully! Reclaimed ${Math.round((res.spaceReclaimed || 0) / 1024 / 1024)} MB`);
+      const reclaimedMB = Math.round((res.spaceReclaimed || 0) / 1024 / 1024);
+      alert(`Pruned successfully! Reclaimed ${reclaimedMB} MB`);
+
+      await recordHistory(
+        selectedAgent.name,
+        selectedAgent.url,
+        'PRUNE_IMAGES',
+        `Pruned dangling images on ${selectedAgent.name}, reclaimed ${reclaimedMB} MB`
+      );
+
       await loadAgentData();
     } catch (err: any) {
       alert(`Prune error: ${err.message}`);
@@ -273,8 +325,15 @@ export default function Home() {
         if (added) {
           setSelectedAgentId(added.id);
         }
+
+        await recordHistory(
+          newAgent.name,
+          newAgent.url,
+          'ADD_AGENT',
+          `Added new agent node '${newAgent.name}' (${newAgent.url}) to watch list`
+        );
       } else {
-        alert('Failed to add agent to watch_list.txt');
+        alert('Failed to add agent to watch list');
       }
     } catch (e: any) {
       alert(`Add agent error: ${e.message}`);
@@ -284,7 +343,6 @@ export default function Home() {
   const handleRemoveAgent = async (id: string) => {
     const target = agents.find((a) => a.id === id);
     if (!target) return;
-    if (!confirm(`Are you sure you want to remove ${target.name} from watch_list.txt?`)) return;
 
     try {
       const res = await fetch('/api/agents', {
@@ -300,8 +358,15 @@ export default function Home() {
         if (selectedAgentId === id) {
           setSelectedAgentId(updatedList.length > 0 ? updatedList[0].id : '');
         }
+
+        await recordHistory(
+          target.name,
+          target.url,
+          'REMOVE_AGENT',
+          `Removed agent node '${target.name}' from watch list`
+        );
       } else {
-        alert('Failed to remove agent from watch_list.txt');
+        alert('Failed to remove agent from watch list');
       }
     } catch (e: any) {
       alert(`Delete agent error: ${e.message}`);
@@ -421,6 +486,7 @@ export default function Home() {
           selectedAgentId={selectedAgentId}
           onSelectAgent={setSelectedAgentId}
           onOpenAddAgent={() => setIsAddAgentOpen(true)}
+          onOpenServerLogs={(ag) => setServerLogAgent(ag)}
         />
 
         <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8">
@@ -590,6 +656,13 @@ export default function Home() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
+                        onClick={() => setServerLogAgent(ag)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-blue-300 transition flex items-center space-x-1"
+                      >
+                        <Server className="w-3.5 h-3.5" />
+                        <span>서버 로그</span>
+                      </button>
+                      <button
                         onClick={() => setSelectedAgentId(ag.id)}
                         className={`text-xs px-3 py-1.5 rounded-lg border transition ${
                           selectedAgentId === ag.id
@@ -638,6 +711,13 @@ export default function Home() {
         }
         onClose={() => setSelectedLogContainer(null)}
       />
+
+      <ServerLogModal
+        agent={serverLogAgent}
+        isOpen={!!serverLogAgent}
+        onClose={() => setServerLogAgent(null)}
+      />
     </div>
   );
 }
+

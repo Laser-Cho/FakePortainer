@@ -11,6 +11,8 @@ const containerRoutes = require('./routes/containers');
 const imageRoutes = require('./routes/images');
 const setupLogStreamWebSocket = require('./websocket/logs');
 
+const systemRoutes = require('./routes/system');
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -33,10 +35,15 @@ app.get('/health', (req, res) => {
 // Protected API routes
 app.use('/api/containers', authMiddleware, containerRoutes);
 app.use('/api/images', authMiddleware, imageRoutes);
+app.use('/api/system', authMiddleware, systemRoutes);
 
 // WebSocket Setup for log streaming
 setupLogStreamWebSocket(wss);
 
 server.listen(PORT, () => {
   console.log(`[FakePortainer Agent] Listening on port ${PORT}`);
+  if (!process.env.AGENT_SECRET_TOKEN || process.env.AGENT_SECRET_TOKEN === '1') {
+    console.warn(`[SECURITY WARNING] AGENT_SECRET_TOKEN is set to default '1'. Change AGENT_SECRET_TOKEN in production!`);
+  }
 });
+

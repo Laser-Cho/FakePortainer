@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ContainerInfo } from '../lib/types';
+import ConfirmModal from './ConfirmModal';
 import { Play, Square, RotateCw, Trash2, FileText, Box, FileCode, Network, Server } from 'lucide-react';
 
 interface ContainerTableProps {
@@ -18,6 +19,18 @@ export default function ContainerTable({
   onOpenLogs,
 }: ContainerTableProps) {
   const hasNodeColumn = containers.some((c) => !!c.agentName);
+
+  // Modal State
+  const [activeModal, setActiveModal] = useState<{
+    container: ContainerInfo;
+    action: 'start' | 'stop' | 'restart' | 'remove';
+  } | null>(null);
+
+  const handleConfirmAction = () => {
+    if (!activeModal) return;
+    onControl(activeModal.container.id, activeModal.action);
+    setActiveModal(null);
+  };
 
   if (isLoading) {
     return (
@@ -173,7 +186,7 @@ export default function ContainerTable({
                     <div className="flex items-center justify-end space-x-1">
                       {isRunning ? (
                         <button
-                          onClick={() => onControl(container.id, 'stop')}
+                          onClick={() => setActiveModal({ container, action: 'stop' })}
                           title="Stop Container"
                           className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-400 hover:text-rose-300 transition"
                         >
@@ -181,7 +194,7 @@ export default function ContainerTable({
                         </button>
                       ) : (
                         <button
-                          onClick={() => onControl(container.id, 'start')}
+                          onClick={() => setActiveModal({ container, action: 'start' })}
                           title="Start Container"
                           className="p-1.5 rounded-md hover:bg-emerald-950/50 text-emerald-400 hover:text-emerald-300 transition"
                         >
@@ -190,7 +203,7 @@ export default function ContainerTable({
                       )}
 
                       <button
-                        onClick={() => onControl(container.id, 'restart')}
+                        onClick={() => setActiveModal({ container, action: 'restart' })}
                         title="Restart Container"
                         className="p-1.5 rounded-md hover:bg-blue-950/50 text-blue-400 hover:text-blue-300 transition"
                       >
@@ -206,7 +219,7 @@ export default function ContainerTable({
                       </button>
 
                       <button
-                        onClick={() => onControl(container.id, 'remove')}
+                        onClick={() => setActiveModal({ container, action: 'remove' })}
                         title="Remove Container"
                         className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-500 hover:text-rose-400 transition"
                       >
@@ -220,6 +233,41 @@ export default function ContainerTable({
           </tbody>
         </table>
       </div>
+
+      {/* Confirmation Modal */}
+      {activeModal && (
+        <ConfirmModal
+          isOpen={!!activeModal}
+          onClose={() => setActiveModal(null)}
+          onConfirm={handleConfirmAction}
+          actionType={activeModal.action}
+          title={
+            activeModal.action === 'remove'
+              ? '컨테이너 강제 삭제 확인'
+              : activeModal.action === 'start'
+              ? '컨테이너 시작 확인'
+              : activeModal.action === 'stop'
+              ? '컨테이너 정지 확인'
+              : '컨테이너 재시작 확인'
+          }
+          description={
+            activeModal.action === 'remove'
+              ? `컨테이너 '${activeModal.container.name}'을(를) 정말 삭제하시겠습니까? 데이터 손실 가능성에 유의하세요.`
+              : `컨테이너 '${activeModal.container.name}'을(를) [${activeModal.action}] 하시겠습니까?`
+          }
+          confirmText={
+            activeModal.action === 'remove'
+              ? '삭제 확정'
+              : activeModal.action === 'start'
+              ? '시작'
+              : activeModal.action === 'stop'
+              ? '정지'
+              : '재시작'
+          }
+          requireMatchText={activeModal.action === 'remove' ? activeModal.container.name : undefined}
+        />
+      )}
     </div>
   );
 }
+

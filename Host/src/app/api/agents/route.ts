@@ -1,24 +1,48 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { AgentConfig } from '../../../lib/types';
+
+const MAGIC_HEADER = Buffer.from('FKPT_BIN:', 'utf-8');
+const SECRET_KEY = crypto.createHash('sha256').update('FakePortainer_Secret_Key_2026').digest();
+const SECRET_IV = crypto.createHash('md5').update('FakePortainer_IV_2026').digest();
+
+function encryptTextToBinary(text: string): Buffer {
+  const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
+  const encrypted = Buffer.concat([cipher.update(text, 'utf-8'), cipher.final()]);
+  return Buffer.concat([MAGIC_HEADER, encrypted]);
+}
+
+function decryptBinaryToText(buffer: Buffer): string {
+  if (buffer.length >= MAGIC_HEADER.length && buffer.subarray(0, MAGIC_HEADER.length).equals(MAGIC_HEADER)) {
+    const encryptedData = buffer.subarray(MAGIC_HEADER.length);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
+    const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
+    return decrypted.toString('utf-8');
+  }
+  // Fallback for legacy plain text file
+  return buffer.toString('utf-8');
+}
 
 function getWatchListFilePath(): string {
   const candidates = [
     process.env.WATCH_LIST_PATH,
+    '/app/watch_list.bin',
     '/app/watch_list.txt',
+    path.join(process.cwd(), 'watch_list.bin'),
     path.join(process.cwd(), 'watch_list.txt'),
+    path.join(process.cwd(), '..', 'watch_list.bin'),
     path.join(process.cwd(), '..', 'watch_list.txt'),
   ].filter(Boolean) as string[];
 
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
-  // Default fallback path for docker or local dev
-  return process.env.WATCH_LIST_PATH || '/app/watch_list.txt';
+  return process.env.WATCH_LIST_PATH || path.join(process.cwd(), 'watch_list.bin');
 }
 
-function parseAgentsFromFile(fileContent: string): AgentConfig[] {
+function parseAgentsFromFileContent(fileContent: string): AgentConfig[] {
   const agents: AgentConfig[] = [];
   const defaultToken = process.env.DEFAULT_AGENT_TOKEN || '1';
 
@@ -70,18 +94,28 @@ function parseAgentsFromFile(fileContent: string): AgentConfig[] {
   return agents;
 }
 
-export async function GET(request: Request) {
+function readWatchListContent(): string {
   const filePath = getWatchListFilePath();
-  let fileContent = '';
   if (fs.existsSync(filePath)) {
     try {
-      fileContent = fs.readFileSync(filePath, 'utf-8');
+      const buffer = fs.readFileSync(filePath);
+      return decryptBinaryToText(buffer);
     } catch (e) {
       console.error(`[WatchList API] Failed to read ${filePath}`, e);
     }
   }
+  return '';
+}
 
-  const agents = parseAgentsFromFile(fileContent);
+function writeWatchListContent(content: string): void {
+  const filePath = getWatchListFilePath();
+  const binaryBuffer = encryptTextToBinary(content);
+  fs.writeFileSync(filePath, binaryBuffer);
+}
+
+export async function GET(request: Request) {
+  const fileContent = readWatchListContent();
+  const agents = parseAgentsFromFileContent(fileContent);
   return NextResponse.json({ agents }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
 }
 
@@ -103,13 +137,8 @@ export async function POST(request: Request) {
     const targetName = (name || `Agent (${targetUrl})`).trim();
     const targetToken = (token || '1').trim();
 
-    const filePath = getWatchListFilePath();
-    let existingLines: string[] = [];
-
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      existingLines = content.split(/\r?\n/);
-    }
+    const existingContent = readWatchListContent();
+    const existingLines = existingContent ? existingContent.split(/\r?\n/) : [];
 
     // Check if URL already exists
     const lineExists = existingLines.some((l) => {
@@ -127,15 +156,15 @@ export async function POST(request: Request) {
           ? `${existingLines.join('\n').trim()}\n${newLine}\n`
           : `# FakePortainer Agent Watch List\n${newLine}\n`;
 
-      fs.writeFileSync(filePath, newContent, 'utf-8');
+      writeWatchListContent(newContent);
     }
 
-    const updatedContent = fs.readFileSync(filePath, 'utf-8');
-    const agents = parseAgentsFromFile(updatedContent);
+    const updatedContent = readWatchListContent();
+    const agents = parseAgentsFromFileContent(updatedContent);
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API POST Error]', err);
-    return NextResponse.json({ error: err.message || 'Failed to add agent to watch_list.txt' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to add agent to watch_list' }, { status: 500 });
   }
 }
 
@@ -148,17 +177,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'URL or ID is required' }, { status: 400 });
     }
 
-    const filePath = getWatchListFilePath();
-    if (!fs.existsSync(filePath)) {
+    const existingContent = readWatchListContent();
+    if (!existingContent) {
       return NextResponse.json({ agents: [], success: true });
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split(/\r?\n/);
-
+    const lines = existingContent.split(/\r?\n/);
     const filteredLines = lines.filter((line) => {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return true; // preserve comments
+      if (!trimmed || trimmed.startsWith('#')) return true;
 
       const parts = trimmed.split('|').map((p) => p.trim());
       let lineUrl = parts.length >= 2 ? parts[1] : parts[0];
@@ -181,12 +208,14 @@ export async function DELETE(request: Request) {
     });
 
     const newContent = filteredLines.join('\n').trim() + '\n';
-    fs.writeFileSync(filePath, newContent, 'utf-8');
+    writeWatchListContent(newContent);
 
-    const agents = parseAgentsFromFile(newContent);
+    const updatedContent = readWatchListContent();
+    const agents = parseAgentsFromFileContent(updatedContent);
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API DELETE Error]', err);
-    return NextResponse.json({ error: err.message || 'Failed to delete agent from watch_list.txt' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to delete agent from watch_list' }, { status: 500 });
   }
 }
+
