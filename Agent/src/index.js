@@ -9,6 +9,7 @@ dotenv.config();
 const authMiddleware = require('./middleware/auth');
 const containerRoutes = require('./routes/containers');
 const imageRoutes = require('./routes/images');
+const volumeRoutes = require('./routes/volumes');
 const setupLogStreamWebSocket = require('./websocket/logs');
 
 const systemRoutes = require('./routes/system');
@@ -35,6 +36,7 @@ app.get('/health', (req, res) => {
 // Protected API routes
 app.use('/api/containers', authMiddleware, containerRoutes);
 app.use('/api/images', authMiddleware, imageRoutes);
+app.use('/api/volumes', authMiddleware, volumeRoutes);
 app.use('/api/system', authMiddleware, systemRoutes);
 
 // WebSocket Setup for log streaming

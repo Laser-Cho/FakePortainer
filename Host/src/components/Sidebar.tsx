@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AgentConfig } from '../lib/types';
-import { Globe, Plus, ChevronRight, Server, History, Terminal } from 'lucide-react';
+import { Globe, Plus, ChevronRight, Server, History, Terminal, HardDrive } from 'lucide-react';
 
 interface SidebarProps {
   agents: AgentConfig[];
@@ -24,6 +24,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const onlineCount = agents.filter((a) => a.isOnline).length;
   const isHistoryActive = pathname === '/history';
+  const isVolumesActive = pathname === '/volumes';
 
   return (
     <aside className="w-64 md:w-72 bg-slate-900/80 border-r border-slate-800 flex flex-col shrink-0 min-h-[calc(100vh-61px)]">
@@ -37,21 +38,33 @@ export default function Sidebar({
             <Link
               href="/"
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
-                !isHistoryActive && selectedAgentId === 'all'
+                !isHistoryActive && !isVolumesActive && selectedAgentId === 'all'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 border border-blue-500'
                   : 'text-slate-300 hover:bg-slate-800/80 border border-slate-800/50'
               }`}
               onClick={() => onSelectAgent('all')}
             >
               <div className="flex items-center space-x-2.5">
-                <Globe className={`w-4 h-4 ${!isHistoryActive && selectedAgentId === 'all' ? 'text-white' : 'text-blue-400'}`} />
+                <Globe className={`w-4 h-4 ${!isHistoryActive && !isVolumesActive && selectedAgentId === 'all' ? 'text-white' : 'text-blue-400'}`} />
                 <span>All Nodes Cluster</span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                !isHistoryActive && selectedAgentId === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                !isHistoryActive && !isVolumesActive && selectedAgentId === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
               }`}>
                 {agents.length} Nodes
               </span>
+            </Link>
+
+            <Link
+              href="/volumes"
+              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                isVolumesActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 border border-blue-500'
+                  : 'text-slate-300 hover:bg-slate-800/80 border border-slate-800/50'
+              }`}
+            >
+              <HardDrive className={`w-4 h-4 ${isVolumesActive ? 'text-white' : 'text-purple-400'}`} />
+              <span>볼륨 관리 (Volumes)</span>
             </Link>
 
             <Link
@@ -88,7 +101,7 @@ export default function Sidebar({
               <p className="text-xs text-slate-500 italic px-2 py-2">No nodes registered</p>
             ) : (
               agents.map((ag) => {
-                const isSelected = !isHistoryActive && selectedAgentId === ag.id;
+                const isSelected = !isHistoryActive && !isVolumesActive && selectedAgentId === ag.id;
                 return (
                   <div
                     key={ag.id}

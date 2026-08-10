@@ -1,4 +1,4 @@
-import { AgentConfig, ContainerInfo, ImageInfo } from './types';
+import { AgentConfig, ContainerInfo, ImageInfo, VolumeInfo } from './types';
 
 // Helper to send request to Host Proxy Route
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000): Promise<Response> {
@@ -65,10 +65,14 @@ export async function fetchContainers(agent: AgentConfig): Promise<ContainerInfo
 export async function controlContainer(
   agent: AgentConfig,
   containerId: string,
-  action: 'start' | 'stop' | 'restart' | 'remove'
+  action: 'start' | 'stop' | 'restart' | 'remove',
+  removeVolumes?: boolean
 ): Promise<void> {
   const method = action === 'remove' ? 'DELETE' : 'POST';
-  const endpoint = `/api/containers/${containerId}/${action === 'remove' ? '' : action}`;
+  let endpoint = `/api/containers/${containerId}/${action === 'remove' ? '' : action}`;
+  if (action === 'remove' && removeVolumes) {
+    endpoint += '?v=true';
+  }
 
   const res = await fetchWithTimeout('/api/proxy', {
     method: 'POST',
@@ -128,4 +132,44 @@ export async function pruneImages(agent: AgentConfig): Promise<{ imagesDeleted: 
     throw new Error(data.error || `Failed to prune images (${res.status})`);
   }
   return await res.json();
+}
+
+export async function fetchVolumes(agent: AgentConfig): Promise<VolumeInfo[]> {
+  const res = await fetchWithTimeout('/api/proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint: '/api/volumes',
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to fetch volumes (${res.status})`);
+  }
+  const data = await res.json();
+  return data.volumes || [];
+}
+
+export async function deleteVolume(agent: AgentConfig, volumeName: string): Promise<void> {
+  const res = await fetchWithTimeout('/api/proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agentUrl: agent.url,
+      endpoint: `/api/volumes/${encodeURIComponent(volumeName)}`,
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${agent.token}`
+      }
+    })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to delete volume (${res.status})`);
+  }
 }

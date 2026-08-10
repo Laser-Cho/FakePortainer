@@ -57,3 +57,19 @@ export interface HistoryLogItem {
   user?: string;
 }
 
+export interface VolumeAttachedContainer {
+  id: string;
+  name: string;
+  state: string;
+}
+
+export interface VolumeInfo {
+  name: string;
+  driver: string;
+  mountpoint: string;
+  created?: string | null;
+  attachedContainers: VolumeAttachedContainer[];
+  agentName?: string;
+  agentUrl?: string;
+}
+

@@ -85,7 +85,8 @@ router.delete('/:id', async (req, res) => {
   try {
     const container = docker.getContainer(req.params.id);
     const force = req.query.force === 'true';
-    await container.remove({ force });
+    const removeVolumes = req.query.v === 'true' || req.query.removeVolumes === 'true';
+    await container.remove({ force, v: removeVolumes });
     res.json({ success: true, message: `Container ${req.params.id} removed successfully` });
   } catch (err) {
     res.status(500).json({ error: `Failed to remove container: ${err.message}` });

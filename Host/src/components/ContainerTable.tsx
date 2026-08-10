@@ -8,7 +8,7 @@ import { Play, Square, RotateCw, Trash2, FileText, Box, FileCode, Network, Serve
 interface ContainerTableProps {
   containers: ContainerInfo[];
   isLoading: boolean;
-  onControl: (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => void;
+  onControl: (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove', removeVolumes?: boolean) => void;
   onOpenLogs: (container: ContainerInfo) => void;
 }
 
@@ -26,9 +26,9 @@ export default function ContainerTable({
     action: 'start' | 'stop' | 'restart' | 'remove';
   } | null>(null);
 
-  const handleConfirmAction = () => {
+  const handleConfirmAction = (options?: { removeVolumes?: boolean }) => {
     if (!activeModal) return;
-    onControl(activeModal.container.id, activeModal.action);
+    onControl(activeModal.container.id, activeModal.action, options?.removeVolumes);
     setActiveModal(null);
   };
 
@@ -118,7 +118,7 @@ export default function ContainerTable({
                           title={container.composeFile}
                         >
                           <FileCode className="w-3.5 h-3.5 mr-1.5 text-purple-400 shrink-0" />
-                          <span>{container.composeFile.split('/').pop() || container.composeFile}</span>
+                          <span>{container.composeFile}</span>
                         </span>
                         <div className="text-[10px] text-slate-400 flex items-center space-x-2">
                           {container.composeProject && (
@@ -265,6 +265,7 @@ export default function ContainerTable({
               : '재시작'
           }
           requireMatchText={activeModal.action === 'remove' ? activeModal.container.name : undefined}
+          showRemoveVolumesOption={activeModal.action === 'remove'}
         />
       )}
     </div>

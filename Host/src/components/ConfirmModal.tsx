@@ -6,12 +6,13 @@ import { AlertTriangle, Info, Trash2, Play, Square, RotateCw, ShieldAlert, X } f
 export interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (options?: { removeVolumes?: boolean }) => void;
   title: string;
   description: string;
   confirmText?: string;
-  actionType: 'start' | 'stop' | 'restart' | 'remove' | 'prune' | 'general';
+  actionType: 'start' | 'stop' | 'restart' | 'remove' | 'prune' | 'general' | 'delete_volume';
   requireMatchText?: string; // If provided, user must type this exact string to confirm
+  showRemoveVolumesOption?: boolean;
 }
 
 export default function ConfirmModal({
@@ -23,12 +24,15 @@ export default function ConfirmModal({
   confirmText,
   actionType,
   requireMatchText,
+  showRemoveVolumesOption,
 }: ConfirmModalProps) {
   const [typedInput, setTypedInput] = useState('');
+  const [removeVolumes, setRemoveVolumes] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTypedInput('');
+      setRemoveVolumes(false);
     }
   }, [isOpen]);
 
@@ -41,6 +45,7 @@ export default function ConfirmModal({
     switch (actionType) {
       case 'remove':
       case 'prune':
+      case 'delete_volume':
         return (
           <div className="bg-rose-500/20 p-3 rounded-xl border border-rose-500/30 text-rose-400">
             <Trash2 className="w-6 h-6" />
@@ -77,6 +82,7 @@ export default function ConfirmModal({
     switch (actionType) {
       case 'remove':
       case 'prune':
+      case 'delete_volume':
       case 'stop':
         return 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25';
       case 'start':
@@ -106,10 +112,24 @@ export default function ConfirmModal({
           </div>
         </div>
 
+        {showRemoveVolumesOption && (
+          <div className="mt-3 mb-2 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
+            <label className="flex items-center space-x-2.5 text-xs text-rose-300 font-semibold cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={removeVolumes}
+                onChange={(e) => setRemoveVolumes(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-rose-500 focus:ring-offset-slate-900"
+              />
+              <span>연관된 도커 볼륨(Volumes)도 같이 삭제할까요?</span>
+            </label>
+          </div>
+        )}
+
         {isMatchRequired && (
-          <div className="mt-4 mb-6 bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <div className="mt-3 mb-6 bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
             <label className="block text-xs font-semibold text-slate-300">
-              확인을 위해 아래 텍스트를 정확히 입력하세요:
+              확인을 위해 아래 이름을 정확히 입력하세요:
             </label>
             <div className="bg-slate-900 border border-slate-700/60 px-3 py-1.5 rounded text-xs font-mono font-bold text-rose-300 select-all">
               {requireMatchText}
@@ -142,7 +162,7 @@ export default function ConfirmModal({
             disabled={!isMatchValid}
             onClick={() => {
               if (isMatchValid) {
-                onConfirm();
+                onConfirm({ removeVolumes });
                 onClose();
               }
             }}
