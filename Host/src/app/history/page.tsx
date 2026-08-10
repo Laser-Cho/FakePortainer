@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import { AgentConfig, HistoryLogItem } from '../../lib/types';
+import { checkAgentHealth } from '../../lib/api';
 import { History, RefreshCw, Search, Server, Box, Filter, ShieldAlert } from 'lucide-react';
 
 export default function HistoryPage() {
@@ -51,6 +52,45 @@ export default function HistoryPage() {
     fetchWatchListAgents();
     fetchHistoryLogs();
   }, [fetchWatchListAgents, fetchHistoryLogs]);
+
+  // Health checks: Polling agent status periodically in History page
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkHealth = async () => {
+      setAgents((currentAgents) => {
+        if (currentAgents.length === 0) return currentAgents;
+
+        Promise.all(
+          currentAgents.map(async (ag) => {
+            const isOnline = await checkAgentHealth(ag);
+            return { ...ag, isOnline };
+          })
+        ).then((updated) => {
+          if (!isMounted) return;
+          setAgents((latest) => {
+            const changed = latest.some(
+              (item, i) => updated[i] && item.isOnline !== updated[i].isOnline
+            );
+            if (!changed) return latest;
+            return latest.map((item, i) => ({
+              ...item,
+              isOnline: updated[i] ? updated[i].isOnline : item.isOnline,
+            }));
+          });
+        });
+
+        return currentAgents;
+      });
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {

@@ -52,10 +52,12 @@ docker run -d \
 docker run -d \
   --name fake-portainer-host \
   -p 3000:3000 \
-  -v ./watch_list.txt:/app/watch_list.txt \
+  -v ./data:/app/data \
   -e NODE_ENV=production \
   -e ADMIN_USER=admin \
   -e ADMIN_PASSWORD=admin123 \
+  -e WATCH_LIST_PATH=/app/data/watch_list.bin \
+  -e HISTORY_LOG_PATH=/app/data/history_log.bin \
   --restart always \
   fake-portainer-host:latest
 ```
@@ -69,8 +71,6 @@ docker run -d \
 - 레시피 파일: [docker-compose.yml](file:///mnt/d/FakePortainer/docker-compose.yml)
 
 ```yaml
-version: '3.8'
-
 services:
   agent:
     build:
@@ -86,6 +86,8 @@ services:
     environment:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
+    networks:
+      - fake_portainer_network
 
   host:
     build:
@@ -97,13 +99,21 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./watch_list.txt:/app/watch_list.txt
+      - ./data:/app/data
     environment:
       - PORT=3000
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
+      - WATCH_LIST_PATH=/app/data/watch_list.bin
+      - HISTORY_LOG_PATH=/app/data/history_log.bin
     depends_on:
       - agent
+    networks:
+      - fake_portainer_network
+
+networks:
+  fake_portainer_network:
+    name: fake_portainer_network
 ```
 **실행 명령:**
 ```bash
@@ -118,8 +128,6 @@ docker compose up -d
 - 레시피 파일: [Agent/docker-compose.yml](file:///mnt/d/FakePortainer/Agent/docker-compose.yml)
 
 ```yaml
-version: '3.8'
-
 services:
   fake-portainer-agent:
     build:
@@ -135,6 +143,12 @@ services:
     environment:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
+    networks:
+      - fake_portainer_network
+
+networks:
+  fake_portainer_network:
+    name: fake_portainer_network
 ```
 **실행 명령:**
 ```bash
@@ -146,8 +160,6 @@ docker compose up -d
 - 레시피 파일: [Host/docker-compose.yml](file:///mnt/d/FakePortainer/Host/docker-compose.yml)
 
 ```yaml
-version: '3.8'
-
 services:
   fake-portainer-host:
     build:
@@ -159,12 +171,20 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./watch_list.txt:/app/watch_list.txt
+      - ./data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=3000
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
+      - WATCH_LIST_PATH=/app/data/watch_list.bin
+      - HISTORY_LOG_PATH=/app/data/history_log.bin
+    networks:
+      - fake_portainer_network
+```
+networks:
+  fake_portainer_network:
+    name: fake_portainer_network
 ```
 **실행 명령:**
 ```bash

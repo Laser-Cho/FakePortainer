@@ -6,4 +6,7 @@ node_modules/
 .env*.local
 *.tar
 *.bin
-
+data/
+watch_list.txt
+watch_list.bin
+history_log.bin

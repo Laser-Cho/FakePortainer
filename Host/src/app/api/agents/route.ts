@@ -37,9 +37,27 @@ function getWatchListFilePath(): string {
   ].filter(Boolean) as string[];
 
   for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+    try {
+      if (fs.existsSync(p)) {
+        const stat = fs.statSync(p);
+        if (stat.isFile()) return p;
+        if (stat.isDirectory()) {
+          const innerFile = path.join(p, 'data.bin');
+          if (!fs.existsSync(innerFile)) {
+            fs.writeFileSync(innerFile, '');
+          }
+          return innerFile;
+        }
+      }
+    } catch (e) {}
   }
-  return process.env.WATCH_LIST_PATH || path.join(process.cwd(), 'watch_list.bin');
+  const defaultPath = process.env.WATCH_LIST_PATH || '/app/watch_list.txt';
+  try {
+    if (!fs.existsSync(defaultPath)) {
+      fs.writeFileSync(defaultPath, '');
+    }
+  } catch (e) {}
+  return defaultPath;
 }
 
 function parseAgentsFromFileContent(fileContent: string): AgentConfig[] {

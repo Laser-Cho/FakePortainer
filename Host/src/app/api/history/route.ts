@@ -5,7 +5,25 @@ import crypto from 'crypto';
 import { HistoryLogItem } from '../../../lib/types';
 
 function getHistoryFilePath(): string {
-  return process.env.HISTORY_LOG_PATH || path.join(process.cwd(), 'history_log.bin');
+  const targetPath = process.env.HISTORY_LOG_PATH || '/app/history_log.bin';
+  try {
+    if (fs.existsSync(targetPath)) {
+      const stat = fs.statSync(targetPath);
+      if (stat.isFile()) return targetPath;
+      if (stat.isDirectory()) {
+        const innerFile = path.join(targetPath, 'data.bin');
+        if (!fs.existsSync(innerFile)) {
+          fs.writeFileSync(innerFile, '');
+        }
+        return innerFile;
+      }
+    } else {
+      fs.writeFileSync(targetPath, '');
+    }
+  } catch (e) {
+    return path.join(process.cwd(), 'history_log.bin');
+  }
+  return targetPath;
 }
 
 const MAGIC_HEADER = Buffer.from('FKPTHIST:', 'utf-8');
@@ -14,7 +32,11 @@ const SECRET_IV = crypto.createHash('md5').update('FakePortainer_History_IV_2026
 
 function readHistoryLogs(): HistoryLogItem[] {
   const filePath = getHistoryFilePath();
-  if (!fs.existsSync(filePath)) return [];
+  try {
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return [];
+  } catch (e) {
+    return [];
+  }
 
   try {
     const buffer = fs.readFileSync(filePath);
