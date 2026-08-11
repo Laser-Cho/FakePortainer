@@ -38,3 +38,9 @@
 ### [Phase 7] 보안 및 토큰 검증 (Completed: 2026-07-22)
 - [x] Bearer Token / JWT 인증 검증 미들웨어 (`src/middleware/auth.js`) 구현 및 적용
 - [x] WebSocket 연결 시 쿼리 파라미터 토큰 검증 추가
+
+### [Phase 12 & Phase 13] 도커 볼륨 제어 API & 컨테이너 연관 볼륨 삭제 지원 (Completed: 2026-08-11)
+- [x] **[볼륨 API 구현]**: `src/routes/volumes.js` 모듈 구현 (`GET /api/volumes`, `DELETE /api/volumes/:name`, `POST /api/volumes/prune`)
+- [x] **[컨테이너 마운트 정보 제공]**: `GET /api/containers` 라우트에서 `Mounts` 배열 정보를 파싱하여 컨테이너 바인딩 볼륨 목록(`mounts`) 반환
+- [x] **[연관 볼륨 함께 삭제 & 강제 삭제]**: `DELETE /api/containers/:id` 쿼리 파라미터 `v=true` 및 `force=true` 지원 구현 (`container.remove({ v: true, force: true })`)
+

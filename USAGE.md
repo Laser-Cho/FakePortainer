@@ -54,6 +54,7 @@ docker run -d \
   -p 3000:3000 \
   -v ./data:/app/data \
   -e NODE_ENV=production \
+  -e APP_TITLE=FakePortainer \
   -e ADMIN_USER=admin \
   -e ADMIN_PASSWORD=admin123 \
   -e WATCH_LIST_PATH=/app/data/watch_list.bin \
@@ -102,6 +103,7 @@ services:
       - ./data:/app/data
     environment:
       - PORT=3000
+      - APP_TITLE=FakePortainer
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin
@@ -122,7 +124,7 @@ docker compose up -d
 
 ---
 
-### Scenario 2: 개별 서버 분리 배포 (Multi-Server Setup)
+## Scenario 2: 개별 서버 분리 배포 (Multi-Server Setup)
 
 #### 1) 각 타겟 서버에 Agent만 배포할 때
 - 레시피 파일: [Agent/docker-compose.yml](file:///mnt/d/FakePortainer/Agent/docker-compose.yml)
@@ -175,6 +177,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - APP_TITLE=FakePortainer
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin
@@ -182,6 +185,7 @@ services:
     networks:
       - fake_portainer_network
 ```
+
 networks:
   fake_portainer_network:
     name: fake_portainer_network

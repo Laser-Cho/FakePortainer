@@ -26,6 +26,13 @@ Portainer와 유사한 경량 웹 기반 멀티 서버 Docker 컨테이너 관�
 7. **동적 `watch_list.txt` 동기화 & 백엔드 프록시 (Proxy) 중계:**
    - 웹 UI에서 에이전트 노드 추가/삭제 시 `watch_list.txt` 파일에 실시간 영구 반영
    - 외부 DDNS(`chcv2.iptime.org`) 및 모바일 5G망 접속 시에도 Host 백엔드 프록시(`POST /api/proxy`)가 내부망 사설 IP 통신을 대행하여 무조건 정상 작동 지원
+8. **도커 볼륨 관제 & 미사용 볼륨 Prune (`/volumes`):**
+   - 클러스터 전체 및 개별 노드의 도커 볼륨 조회(`VolumeTable.tsx`), 연결된 컨테이너 및 마운트 지점 표출, Dangling 미사용 볼륨 일괄 삭제 지원
+9. **컨테이너 삭제 시 연관 볼륨 선택 동시 삭제:**
+   - 컨테이너 강제 삭제 팝업(`ConfirmModal.tsx`) 시 컨테이너에 바인딩된 도커 볼륨 목록을 자동 파싱하여, 선택된 볼륨을 컨테이너와 함께 안전하게 동시 삭제 (`DELETE /api/containers/:id?v=true&force=true`)
+10. **동적 대시보드 타이틀 (`APP_TITLE`) & 작업 이력 추적 (`/history`):**
+    - 환경변수(`APP_TITLE`) 기반 맞춤형 애플리케이션 브랜드 명칭 설정 API (`GET /api/config`)
+    - 모든 제어 변경 사항(컨테이너/이미지/볼륨/노드)에 대한 작업 이력 모니터링 페이지 및 AES-256 바이너리 암호화 저장
 
 ---
 
@@ -48,3 +55,6 @@ Portainer와 유사한 경량 웹 기반 멀티 서버 Docker 컨테이너 관�
 - [x] **[Phase 9] 환경변수 기반 인증 게이트**: `ADMIN_USER`, `ADMIN_PASSWORD` 환경변수 연동 및 대시보드 강제 잠금 로그인 화면 구현
 - [x] **[Phase 10] 사이드바 & 클러스터 통합 뷰**: 좌측 네비게이션 사이드바 및 전체 머신 통합 관제 뷰 (`All Nodes Cluster`) 구현
 - [x] **[Phase 11] Host 백엔드 프록시 (Proxy) 중계 개편**: 외부 DDNS 및 모바일 망 접속 환경에서도 100% 에이전트 통신이 성공하도록 Host 백엔드 중계 방식 적용
+- [x] **[Phase 12] All Nodes Cluster 통합 뷰 내 도커 볼륨 관제**: 독립 `VolumeTable.tsx` 구현, 탭 순서 최적화(`containers` -> `images` -> `volumes` -> `agents`), 통합 볼륨 병렬 페칭 및 대시보드 요약 카드 제공
+- [x] **[Phase 13] 컨테이너 연관 볼륨 연동 삭제 & 동적 APP_TITLE & 작업 이력 추적**: 컨테이너 삭제 시 바인딩 볼륨 동시 삭제 선택 팝업, 환경변수 기반 dynamic `APP_TITLE` API 라우트(`GET /api/config`), 감사 이력 추적 UI 및 AES-256 바이너리 데이터 암호화 적용
+

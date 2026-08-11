@@ -33,13 +33,19 @@
    - 외부 DDNS, 포트포워딩, 모바일 5G망 등 접속 환경에 제약받지 않도록 Host Node 백엔드(`POST /api/proxy`)가 가상머신 사설 IP로 직접 중계 통신 수행
 8. **와이드스크린 반응형 풀 파노라마 UI:**
    - 모니터 가로 해상도를 자동 인식하는 `max-w-[1920px]` 레이아웃 적용으로 수평 스크롤 없이 넓은 공간 활용
+9. **도커 볼륨 통합 관제 (`VolumeTable.tsx`):**
+   - All Nodes Cluster 및 개별 노드의 도커 볼륨 현황 조회, 마운트 지점 및 연결 컨테이너 표출, 미사용 Dangling 볼륨 일괄 Prune
+10. **컨테이너 연관 볼륨 삭제 팝업 (`ConfirmModal.tsx`):**
+    - 컨테이너 마운트 정보(`mounts`) 파싱을 통해 바인딩된 볼륨 목록을 확인하고, 사용자 선택에 따른 연관 볼륨 동시 삭제 처리 (`DELETE /api/containers/:id?v=true&force=true`)
+11. **동적 앱 타이틀 (`APP_TITLE`) 및 작업 이력 추적 (`/history`):**
+    - `GET /api/config` API 라우트를 통한 브랜드 타이틀 동적 연동 및 `/history` 작업 감사 이력 모니터링
 
 ---
 
 ## 3. 기술 스택 및 구조
 - **Frontend:** Next.js (React) + TypeScript + Tailwind CSS + Lucide React (깔끔하고 세련된 다크 모드 기본 테마)
-- **Backend (Host Controller):** Next.js App Router API Routes (`/api/proxy`, `/api/agents`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
-- **데이터 저장:** `watch_list.txt` (서버 주소 목록 마운트 연동) 및 세션 쿠키
+- **Backend (Host Controller):** Next.js App Router API Routes (`/api/proxy`, `/api/agents`, `/api/config`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
+- **데이터 저장:** `watch_list.bin` 및 `history_log.bin` (AES-256-CBC 암호화 바이너리 마운트 연동) 및 세션 쿠키
 - **통신 클라이언트:** 
   - REST API Client (`fetch`): Host 백엔드 프록시 중계를 통한 에이전트 제어 및 상태 수집
   - WebSocket Client: 실시간 로그 스트리밍 중계 수신용
@@ -59,6 +65,9 @@
 - [x] **[Phase 9] 환경변수 인증 게이트**: `ADMIN_USER`, `ADMIN_PASSWORD` 환경변수 로그인 및 강제 대시보드 잠금 구현
 - [x] **[Phase 10] 사이드바 & 클러스터 통합 뷰**: 좌측 네비게이션 `Sidebar.tsx` 및 `All Nodes Cluster` 통합 관제 뷰 구현
 - [x] **[Phase 11] Host 백엔드 프록시 (Proxy) 구조 적용**: 외부 DDNS 및 모바일 망 접속 시 사설 IP 통신 실패 문제를 차단하기 위해 Host 서버 백엔드 중계 방식 적용
+- [x] **[Phase 12] All Nodes Cluster 도커 볼륨 관제 통합**: `VolumeTable.tsx` 구현 및 대시보드 탭 순서 최적화 (`containers` -> `images` -> `volumes` -> `agents`), 볼륨 통계 카드 추가
+- [x] **[Phase 13] 컨테이너 바인딩 볼륨 동시 삭제 & Dynamic APP_TITLE**: 컨테이너 삭제 팝업 연관 볼륨 파싱/선택 삭제 지원, `GET /api/config` 타이틀 연동, 이력 추적 페이지 UI 고도화
+
 
 ---
 

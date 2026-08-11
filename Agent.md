@@ -19,12 +19,17 @@
      - 기본 정보: ID, Name, Image, Status, Created, Port Mappings
      - **Docker Compose 정보**: `composeFile`, `composeProject`, `composeService` (라벨 파싱)
      - **Docker Network 정보**: `networks` (연결된 네트워크명, internal IP, Gateway, MAC 주소)
+     - **Docker Mounts/Volumes 정보**: `mounts` (타입, 볼륨명/소스, 목적지, 드라이버 파싱)
    - `POST /api/containers/:id/start` : 컨테이너 시작
    - `POST /api/containers/:id/stop` : 컨테이너 중지
    - `POST /api/containers/:id/restart` : 컨테이너 재시작
-   - `DELETE /api/containers/:id` : 컨테이너 삭제
+   - `DELETE /api/containers/:id` : 컨테이너 삭제 (`?v=true` 옵션 시 연관 볼륨 함께 삭제, `?force=true` 옵션 시 강제 삭제)
    - `GET /api/images` : 로컬 Docker 이미지 목록 조회
    - `POST /api/images/prune` : 사용하지 않는 이미지(Dangling) 일괄 삭제
+   - `GET /api/volumes` : 로컬 Docker 볼륨 목록 및 바인딩 현황 반환
+   - `DELETE /api/volumes/:name` : 특정 Docker 볼륨 삭제 (`?force=true` 강제 삭제 지원)
+   - `POST /api/volumes/prune` : 사용하지 않는 Dangling 볼륨 일괄 삭제
+
 3. **WebSocket 실시간 로그 스트리밍:**
    - `/api/containers/:id/logs` 연결 시, 해당 컨테이너의 Docker 로그 스트림(`container.logs({ follow: true, stdout: true, stderr: true, tail: 200 })`)을 읽어 클라이언트에 실시간 전송
 4. **접근 제어 미들웨어:**

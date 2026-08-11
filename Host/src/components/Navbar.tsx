@@ -13,6 +13,7 @@ interface NavbarProps {
   currentUser?: string | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  appTitle?: string;
 }
 
 export default function Navbar({
@@ -24,6 +25,7 @@ export default function Navbar({
   currentUser,
   onOpenLogin,
   onLogout,
+  appTitle = 'FakePortainer',
 }: NavbarProps) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
 
@@ -35,7 +37,7 @@ export default function Navbar({
           <Server className="w-5 h-5 text-blue-400" />
         </div>
         <div>
-          <span className="font-bold text-lg text-slate-100 tracking-wide">FakePortainer</span>
+          <span className="font-bold text-lg text-slate-100 tracking-wide">{appTitle}</span>
           <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">
             Control Plane
           </span>

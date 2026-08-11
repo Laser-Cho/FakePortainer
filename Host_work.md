@@ -67,3 +67,15 @@
 - [x] **[아키텍처 개선] Host 백엔드 프록시 API 라우트 (`POST /api/proxy`) 구현**: 웹 브라우저의 direct fetch 구조를 제거하고 Host 백엔드가 Hyper-V 내부망 게스트 에이전트들과 통신하도록 중계 처리
 - [x] **[CORS & 네트워크 통신 보완]**: 접속 주소(내부 사설 IP `192.168.0.32:3000` 또는 외부 DDNS `chcv2.iptime.org:33000` / 모바일 LTE/5G)와 관계없이 Host 서버가 내부망 가상머신과 통신하여 모든 에이전트 통신이 100% 정상 작동하도록 개편
 - [x] **[API 라우트 정제]**: `agents/route.ts`에서 불필요한 Host IP 강제 변환 로직을 제거하여 `watch_list.txt` 원본 사설 IP 그대로 백엔드 중계에 사용
+
+### [Phase 12] All Nodes Cluster 통합 뷰 내 도커 볼륨 조회 지원 (Completed: 2026-08-11)
+- [x] **[신규 컴포넌트] VolumeTable (`VolumeTable.tsx`)**: 볼륨 검색, 연결된 컨테이너, 호스트 마운트 지점, 에이전트 노드 표시 및 오동작 방지 볼륨 삭제 팝업을 포함하는 독립 재사용 컴포넌트 구현
+- [x] **[탭 통합 및 순서 변경]**: All Nodes Cluster 및 개별 노드 대시보드 탭 순서를 **컨테이너, 이미지, 볼륨, 에이전트 노드** (`containers` -> `images` -> `volumes` -> `agents`) 순서로 변경 및 배치
+- [x] **[통합 데이터 페칭]**: `loadAgentData()`에서 전체 또는 개별 에이전트 노드의 볼륨 데이터를 병렬(`fetchVolumes`) 수집하고 대시보드 상단 요약 카드에 **Total Volumes** 카드를 추가하여 클러스터 전체 볼륨 현황을 실시간 관제하도록 구현
+
+### [Phase 13] 연관 볼륨 선택 동시 삭제 & Dynamic APP_TITLE & 작업 이력 추적 (Completed: 2026-08-11)
+- [x] **[컨테이너 바인딩 볼륨 연동 삭제]**: `ContainerTable.tsx`에서 컨테이너 Mounts 메타데이터를 파싱하여 `ConfirmModal.tsx`에 전달, 팝업 창 내 연관 볼륨 선택 체크박스 UI 제공 및 `DELETE /api/containers/:id?v=true&force=true` 연동
+- [x] **[동적 앱 타이틀 지원]**: `Host/src/app/api/config/route.ts` 구현하여 환경변수 `APP_TITLE` (기본값: `FakePortainer`) 값을 대시보드 상단 Navbar 및 브라우저 세션에 동적으로 표출하도록 구현
+- [x] **[작업 이력 모니터링 고도화]**: `/history` 페이지에서 헬스체크 현황 및 컨테이너/이미지/볼륨/노드 변경 작업 이력을 실시간 모니터링하도록 보완, `history_log.bin` AES-256 바이너리 데이터 암호화 호환성 확보
+
+

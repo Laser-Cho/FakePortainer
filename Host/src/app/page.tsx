@@ -5,22 +5,25 @@ import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import ContainerTable from '../components/ContainerTable';
 import ImageTable from '../components/ImageTable';
+import VolumeTable from '../components/VolumeTable';
+import ConfirmModal from '../components/ConfirmModal';
 import LogViewerModal from '../components/LogViewerModal';
 import AgentModal from '../components/AgentModal';
 import LoginModal from '../components/LoginModal';
-import { AgentConfig, ContainerInfo, ImageInfo } from '../lib/types';
+import ServerLogModal from '../components/ServerLogModal';
+import { AgentConfig, ContainerInfo, ImageInfo, VolumeInfo } from '../lib/types';
 import {
   fetchContainers,
   controlContainer,
   fetchImages,
   pruneImages,
+  fetchVolumes,
+  deleteVolume,
   checkAgentHealth,
 } from '../lib/api';
-import { Server, Box, Layers, PlayCircle, StopCircle, RefreshCw, ShieldAlert, Trash2, PlusCircle } from 'lucide-react';
+import { Server, Box, Layers, PlayCircle, StopCircle, RefreshCw, ShieldAlert, Trash2, PlusCircle, HardDrive } from 'lucide-react';
 
 const DEFAULT_AGENTS: AgentConfig[] = [];
-
-import ServerLogModal from '../components/ServerLogModal';
 
 export default function Home() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
@@ -49,10 +52,11 @@ export default function Home() {
     fetchWatchListAgents();
   }, [fetchWatchListAgents]);
 
-  const [activeTab, setActiveTab] = useState<'containers' | 'images' | 'agents'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'images' | 'volumes' | 'agents'>('containers');
 
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
   const [images, setImages] = useState<ImageInfo[]>([]);
+  const [volumes, setVolumes] = useState<VolumeInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -64,6 +68,7 @@ export default function Home() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerInfo | null>(null);
   const [serverLogAgent, setServerLogAgent] = useState<AgentConfig | null>(null);
+  const [deleteVolumeTarget, setDeleteVolumeTarget] = useState<{ volume: VolumeInfo; agent: AgentConfig } | null>(null);
 
   // Helper to record audit history
   const recordHistory = async (
@@ -92,6 +97,21 @@ export default function Home() {
       console.error('Failed to record history', e);
     }
   };
+
+  // Config / App Title State
+  const [appTitle, setAppTitle] = useState<string>('FakePortainer');
+
+  useEffect(() => {
+    fetch('/api/config', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.appTitle) {
+          setAppTitle(data.appTitle);
+          document.title = `${data.appTitle} - Control Plane`;
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Initial Auth Check (/api/auth/me)
   useEffect(() => {
@@ -169,11 +189,12 @@ export default function Home() {
     };
   }, []);
 
-  // Load container & image data for selected agent (or all nodes)
+  // Load container, image & volume data for selected agent (or all nodes)
   const loadAgentData = useCallback(async () => {
     if (!selectedAgentId) {
       setContainers([]);
       setImages([]);
+      setVolumes([]);
       setErrorMsg('');
       setIsLoading(false);
       return;
@@ -189,45 +210,56 @@ export default function Home() {
           setErrorMsg('All registered agent nodes are currently offline.');
           setContainers([]);
           setImages([]);
+          setVolumes([]);
           setIsLoading(false);
           return;
         }
 
         const results = await Promise.all(
           targetAgents.map(async (ag) => {
-            const [cList, iList] = await Promise.all([
+            const [cList, iList, vList] = await Promise.all([
               fetchContainers(ag).catch(() => []),
               fetchImages(ag).catch(() => []),
+              fetchVolumes(ag).catch(() => []),
             ]);
             const taggedContainers = cList.map((c) => ({
               ...c,
               agentName: ag.name,
               agentUrl: ag.url,
             }));
-            return { containers: taggedContainers, images: iList };
+            const taggedVolumes = vList.map((v) => ({
+              ...v,
+              agentName: ag.name,
+              agentUrl: ag.url,
+            }));
+            return { containers: taggedContainers, images: iList, volumes: taggedVolumes };
           })
         );
 
         const allContainers = results.flatMap((r) => r.containers);
         const allImages = results.flatMap((r) => r.images);
+        const allVolumes = results.flatMap((r) => r.volumes);
 
         setContainers(allContainers);
         setImages(allImages);
+        setVolumes(allVolumes);
       } else {
         const targetAgent = agents.find((a) => a.id === selectedAgentId);
         if (!targetAgent) {
           setContainers([]);
           setImages([]);
+          setVolumes([]);
           setIsLoading(false);
           return;
         }
 
-        const [cList, iList] = await Promise.all([
+        const [cList, iList, vList] = await Promise.all([
           fetchContainers(targetAgent).catch((e) => {
             setErrorMsg(e.message);
             return [];
           }),
           fetchImages(targetAgent).catch(() => []),
+          fetchVolumes(targetAgent).catch(() => []),
         ]);
 
         const taggedContainers = cList.map((c) => ({
@@ -235,9 +267,15 @@ export default function Home() {
           agentName: targetAgent.name,
           agentUrl: targetAgent.url,
         }));
+        const taggedVolumes = vList.map((v) => ({
+          ...v,
+          agentName: targetAgent.name,
+          agentUrl: targetAgent.url,
+        }));
 
         setContainers(taggedContainers);
         setImages(iList);
+        setVolumes(taggedVolumes);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to communicate with Agent(s)');
@@ -255,7 +293,8 @@ export default function Home() {
   // Container Actions with History Recording
   const handleControlContainer = async (
     containerId: string,
-    action: 'start' | 'stop' | 'restart' | 'remove'
+    action: 'start' | 'stop' | 'restart' | 'remove',
+    removeVolumes?: boolean
   ) => {
     const targetContainer = containers.find((c) => c.id === containerId);
     const targetAgent = targetContainer?.agentUrl
@@ -264,16 +303,17 @@ export default function Home() {
 
     if (!targetAgent) return;
     try {
-      await controlContainer(targetAgent, containerId, action);
+      await controlContainer(targetAgent, containerId, action, removeVolumes);
       
       // Record in history log
       const actionUpper = action.toUpperCase();
       const containerName = targetContainer?.name || containerId;
+      const volText = removeVolumes ? ' (with associated volumes)' : '';
       await recordHistory(
         targetAgent.name,
         targetAgent.url,
         actionUpper,
-        `Container '${containerName}' ${action}ed successfully on ${targetAgent.name}`,
+        `Container '${containerName}' ${action}ed successfully on ${targetAgent.name}${volText}`,
         containerId,
         containerName
       );
@@ -302,6 +342,26 @@ export default function Home() {
       await loadAgentData();
     } catch (err: any) {
       alert(`Prune error: ${err.message}`);
+    }
+  };
+
+  const handleDeleteVolumeConfirm = async () => {
+    if (!deleteVolumeTarget) return;
+    const { volume, agent } = deleteVolumeTarget;
+
+    try {
+      await deleteVolume(agent, volume.name);
+      await recordHistory(
+        agent.name,
+        agent.url,
+        'DELETE_VOLUME',
+        `Deleted volume '${volume.name}' on ${agent.name}`
+      );
+      await loadAgentData();
+    } catch (err: any) {
+      alert(`볼륨 삭제 실패: ${err.message}`);
+    } finally {
+      setDeleteVolumeTarget(null);
     }
   };
 
@@ -398,7 +458,7 @@ export default function Home() {
               <Server className="w-7 h-7 text-blue-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-100">FakePortainer</h1>
+              <h1 className="text-xl font-bold text-slate-100">{appTitle}</h1>
               <p className="text-xs text-slate-400">Control Plane Dashboard Login</p>
             </div>
           </div>
@@ -470,6 +530,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Navbar
+        appTitle={appTitle}
         agents={agents}
         selectedAgentId={selectedAgentId}
         onSelectAgent={setSelectedAgentId}
@@ -507,7 +568,7 @@ export default function Home() {
         )}
 
         {/* Dashboard Stats */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-lg flex items-center justify-between">
             <div>
               <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Agents Online</p>
@@ -549,6 +610,16 @@ export default function Home() {
               <Layers className="w-6 h-6 text-purple-400" />
             </div>
           </div>
+
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-lg flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Volumes</p>
+              <h3 className="text-3xl font-bold mt-1 text-indigo-400">{volumes.length}</h3>
+            </div>
+            <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <HardDrive className="w-6 h-6 text-indigo-400" />
+            </div>
+          </div>
         </section>
 
         {/* Tab Navigation & Refresh */}
@@ -579,6 +650,18 @@ export default function Home() {
             </button>
 
             <button
+              onClick={() => setActiveTab('volumes')}
+              className={`flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-lg transition ${
+                activeTab === 'volumes'
+                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              <HardDrive className="w-4 h-4 text-indigo-400" />
+              <span>Volumes ({volumes.length})</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('agents')}
               className={`flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-lg transition ${
                 activeTab === 'agents'
@@ -605,6 +688,7 @@ export default function Home() {
         {activeTab === 'containers' && (
           <ContainerTable
             containers={containers}
+            allVolumes={volumes}
             isLoading={isLoading}
             onControl={handleControlContainer}
             onOpenLogs={setSelectedLogContainer}
@@ -613,6 +697,15 @@ export default function Home() {
 
         {activeTab === 'images' && (
           <ImageTable images={images} isLoading={isLoading} onPrune={handlePruneImages} />
+        )}
+
+        {activeTab === 'volumes' && (
+          <VolumeTable
+            volumes={volumes}
+            agents={agents}
+            isLoading={isLoading}
+            onDeleteVolume={(vol, ag) => setDeleteVolumeTarget({ volume: vol, agent: ag })}
+          />
         )}
 
         {activeTab === 'agents' && (
@@ -717,6 +810,19 @@ export default function Home() {
         isOpen={!!serverLogAgent}
         onClose={() => setServerLogAgent(null)}
       />
+
+      {deleteVolumeTarget && (
+        <ConfirmModal
+          isOpen={!!deleteVolumeTarget}
+          onClose={() => setDeleteVolumeTarget(null)}
+          onConfirm={handleDeleteVolumeConfirm}
+          actionType="delete_volume"
+          title="도커 볼륨 영구 삭제 확인"
+          description={`볼륨 '${deleteVolumeTarget.volume.name}'을(를) 삭제하시겠습니까? 볼륨 내부 데이터가 완전히 제거됩니다.`}
+          confirmText="볼륨 영구 삭제"
+          requireMatchText={deleteVolumeTarget.volume.name}
+        />
+      )}
     </div>
   );
 }

@@ -183,7 +183,7 @@ networks:
 
 ## 📌 Slide 9. Project Milestones (개발 마일스톤 현황)
 
-### 📋 Phase 1 ~ Phase 11 완료 내역
+### 📋 Phase 1 ~ Phase 13 완료 내역
 
 - [x] **[Phase 1]** 프로젝트 셋업 및 Express/Next.js Dockerfile 구성
 - [x] **[Phase 2]** Docker Socket 연동 및 컨테이너 목록 API 개발
@@ -196,6 +196,9 @@ networks:
 - [x] **[Phase 9]** `ADMIN_USER`, `ADMIN_PASSWORD` 강제 로그인 인증 게이트
 - [x] **[Phase 10]** 사이드바 `Sidebar.tsx` 및 `All Nodes Cluster` 통합 관제
 - [x] **[Phase 11]** Host 백엔드 프록시(`POST /api/proxy`) 중계 및 이력 추적/암호화 적용
+- [x] **[Phase 12]** All Nodes Cluster 도커 볼륨 관제 통합 (`VolumeTable.tsx`)
+- [x] **[Phase 13]** 컨테이너 연관 볼륨 선택적 동시 삭제 팝업 & Dynamic `APP_TITLE`
+
 
 ---
 

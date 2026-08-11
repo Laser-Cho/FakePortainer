@@ -70,8 +70,12 @@ export async function controlContainer(
 ): Promise<void> {
   const method = action === 'remove' ? 'DELETE' : 'POST';
   let endpoint = `/api/containers/${containerId}/${action === 'remove' ? '' : action}`;
-  if (action === 'remove' && removeVolumes) {
-    endpoint += '?v=true';
+  if (action === 'remove') {
+    const queryParams: string[] = ['force=true'];
+    if (removeVolumes) {
+      queryParams.push('v=true');
+    }
+    endpoint += `?${queryParams.join('&')}`;
   }
 
   const res = await fetchWithTimeout('/api/proxy', {

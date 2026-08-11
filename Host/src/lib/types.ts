@@ -20,6 +20,14 @@ export interface ContainerNetwork {
   mac?: string | null;
 }
 
+export interface ContainerMount {
+  type: string;
+  name?: string | null;
+  source?: string | null;
+  destination?: string | null;
+  driver?: string | null;
+}
+
 export interface ContainerInfo {
   id: string;
   fullId: string;
@@ -33,6 +41,7 @@ export interface ContainerInfo {
   composeProject?: string | null;
   composeService?: string | null;
   networks?: ContainerNetwork[];
+  mounts?: ContainerMount[];
   agentName?: string;
   agentUrl?: string;
 }

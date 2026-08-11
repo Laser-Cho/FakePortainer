@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Info, Trash2, Play, Square, RotateCw, ShieldAlert, X } from 'lucide-react';
+import { AlertTriangle, Info, Trash2, Play, Square, RotateCw, ShieldAlert, X, HardDrive } from 'lucide-react';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ export interface ConfirmModalProps {
   actionType: 'start' | 'stop' | 'restart' | 'remove' | 'prune' | 'general' | 'delete_volume';
   requireMatchText?: string; // If provided, user must type this exact string to confirm
   showRemoveVolumesOption?: boolean;
+  attachedVolumes?: { name: string; type?: string; destination?: string }[];
 }
 
 export default function ConfirmModal({
@@ -25,6 +26,7 @@ export default function ConfirmModal({
   actionType,
   requireMatchText,
   showRemoveVolumesOption,
+  attachedVolumes,
 }: ConfirmModalProps) {
   const [typedInput, setTypedInput] = useState('');
   const [removeVolumes, setRemoveVolumes] = useState(false);
@@ -113,7 +115,7 @@ export default function ConfirmModal({
         </div>
 
         {showRemoveVolumesOption && (
-          <div className="mt-3 mb-2 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
+          <div className="mt-3 mb-2 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
             <label className="flex items-center space-x-2.5 text-xs text-rose-300 font-semibold cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -123,6 +125,31 @@ export default function ConfirmModal({
               />
               <span>연관된 도커 볼륨(Volumes)도 같이 삭제할까요?</span>
             </label>
+
+            {attachedVolumes && attachedVolumes.length > 0 ? (
+              <div className="pl-6.5 space-y-1.5 pt-1.5 border-t border-slate-800/60">
+                <p className="text-[11px] text-rose-300 font-semibold flex items-center space-x-1">
+                  <span>⚠️ 삭제 대상 연결 볼륨 ({attachedVolumes.length}개):</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {attachedVolumes.map((vol, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-purple-950/90 text-purple-200 border border-purple-800/70 break-all shadow-sm"
+                      title={vol.destination ? `마운트 목적지: ${vol.destination}` : undefined}
+                    >
+                      <HardDrive className="w-3.5 h-3.5 mr-1.5 text-purple-400 shrink-0" />
+                      <span>{vol.name}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="pl-6.5 pt-1 text-[11px] text-slate-400 flex items-center space-x-1.5">
+                <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>이 컨테이너에는 연결된 도커 볼륨이 없습니다. (0개)</span>
+              </div>
+            )}
           </div>
         )}
 

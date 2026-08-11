@@ -29,6 +29,7 @@ services:
       - ./data:/app/data
     environment:
       - PORT=3000
+      - APP_TITLE=FakePortainer
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin

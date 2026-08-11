@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
 
       containers.forEach(c => {
         const mounts = c.Mounts || [];
-        const isAttached = mounts.some(m => m.Name === volName || m.Source.includes(volName));
+        const isAttached = !!volName && mounts.some(m => m.Type === 'volume' && m.Name === volName);
         if (isAttached) {
           attachedContainers.push({
             id: c.Id.substring(0, 12),

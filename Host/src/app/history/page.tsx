@@ -151,9 +151,24 @@ export default function HistoryPage() {
     }
   };
 
+  const [appTitle, setAppTitle] = useState<string>('FakePortainer');
+
+  useEffect(() => {
+    fetch('/api/config', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.appTitle) {
+          setAppTitle(data.appTitle);
+          document.title = `${data.appTitle} - Audit History`;
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Navbar
+        appTitle={appTitle}
         agents={agents}
         selectedAgentId={selectedAgentId}
         onSelectAgent={setSelectedAgentId}

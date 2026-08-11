@@ -20,6 +20,24 @@ router.get('/', async (req, res) => {
         mac: networksObj[netName].MacAddress || null
       }));
 
+      const mounts = (c.Mounts || []).map(m => {
+        let volName = m.Name || null;
+        if (!volName && (m.Type === 'volume' || !m.Type) && m.Source) {
+          if (m.Source.includes('/volumes/')) {
+            volName = m.Source.replace(/^.*[\/\\]volumes[\/\\]([^\/\\]+).*$/, '$1');
+          } else if (!m.Source.startsWith('/')) {
+            volName = m.Source;
+          }
+        }
+        return {
+          type: m.Type || 'volume',
+          name: volName || m.Name || null,
+          source: m.Source || null,
+          destination: m.Destination || null,
+          driver: m.Driver || null
+        };
+      });
+
       return {
         id: c.Id.substring(0, 12),
         fullId: c.Id,
@@ -37,7 +55,8 @@ router.get('/', async (req, res) => {
         composeFile,
         composeProject,
         composeService,
-        networks
+        networks,
+        mounts
       };
     });
     res.json({ containers: formatted });
@@ -86,9 +105,37 @@ router.delete('/:id', async (req, res) => {
     const container = docker.getContainer(req.params.id);
     const force = req.query.force === 'true';
     const removeVolumes = req.query.v === 'true' || req.query.removeVolumes === 'true';
-    await container.remove({ force, v: removeVolumes });
+
+    let volumeNames = [];
+    if (removeVolumes) {
+      try {
+        const info = await container.inspect();
+        volumeNames = (info.Mounts || [])
+          .filter(m => m.Type === 'volume' && m.Name)
+          .map(m => m.Name);
+      } catch (inspectErr) {
+        console.warn(`[Agent Container Delete] Could not inspect container before deletion: ${inspectErr.message}`);
+      }
+    }
+
+    await container.remove({ force: force || true, v: removeVolumes });
+
+    // Explicitly delete named volumes if requested
+    if (removeVolumes && volumeNames.length > 0) {
+      for (const volName of volumeNames) {
+        try {
+          const vol = docker.getVolume(volName);
+          await vol.remove();
+          console.log(`[Agent Container Delete] Successfully removed associated volume '${volName}'`);
+        } catch (volErr) {
+          console.warn(`[Agent Container Delete] Failed to remove volume '${volName}': ${volErr.message}`);
+        }
+      }
+    }
+
     res.json({ success: true, message: `Container ${req.params.id} removed successfully` });
   } catch (err) {
+    console.error(`Error deleting container ${req.params.id}:`, err.message);
     res.status(500).json({ error: `Failed to remove container: ${err.message}` });
   }
 });

@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ContainerInfo } from '../lib/types';
+import { ContainerInfo, VolumeInfo } from '../lib/types';
 import ConfirmModal from './ConfirmModal';
 import { Play, Square, RotateCw, Trash2, FileText, Box, FileCode, Network, Server } from 'lucide-react';
 
 interface ContainerTableProps {
   containers: ContainerInfo[];
+  allVolumes?: VolumeInfo[];
   isLoading: boolean;
   onControl: (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove', removeVolumes?: boolean) => void;
   onOpenLogs: (container: ContainerInfo) => void;
@@ -14,6 +15,7 @@ interface ContainerTableProps {
 
 export default function ContainerTable({
   containers,
+  allVolumes,
   isLoading,
   onControl,
   onOpenLogs,
@@ -235,39 +237,57 @@ export default function ContainerTable({
       </div>
 
       {/* Confirmation Modal */}
-      {activeModal && (
-        <ConfirmModal
-          isOpen={!!activeModal}
-          onClose={() => setActiveModal(null)}
-          onConfirm={handleConfirmAction}
-          actionType={activeModal.action}
-          title={
-            activeModal.action === 'remove'
-              ? '컨테이너 강제 삭제 확인'
-              : activeModal.action === 'start'
-              ? '컨테이너 시작 확인'
-              : activeModal.action === 'stop'
-              ? '컨테이너 정지 확인'
-              : '컨테이너 재시작 확인'
-          }
-          description={
-            activeModal.action === 'remove'
-              ? `컨테이너 '${activeModal.container.name}'을(를) 정말 삭제하시겠습니까? 데이터 손실 가능성에 유의하세요.`
-              : `컨테이너 '${activeModal.container.name}'을(를) [${activeModal.action}] 하시겠습니까?`
-          }
-          confirmText={
-            activeModal.action === 'remove'
-              ? '삭제 확정'
-              : activeModal.action === 'start'
-              ? '시작'
-              : activeModal.action === 'stop'
-              ? '정지'
-              : '재시작'
-          }
-          requireMatchText={activeModal.action === 'remove' ? activeModal.container.name : undefined}
-          showRemoveVolumesOption={activeModal.action === 'remove'}
-        />
-      )}
+      {activeModal && (() => {
+        const attachedVols = (activeModal.container.mounts || [])
+          .filter((m) => !m.type || m.type.toLowerCase() === 'volume')
+          .map((m) => {
+            let rawName = m.name || m.source || '';
+            if (rawName.includes('/volumes/')) {
+              rawName = rawName.replace(/^.*[\/\\]volumes[\/\\]([^\/\\]+).*$/, '$1');
+            }
+            return {
+              name: rawName,
+              type: 'volume',
+              destination: m.destination || undefined,
+            };
+          })
+          .filter((m) => m.name && m.name.trim() !== '' && !m.name.startsWith('/'));
+
+        return (
+          <ConfirmModal
+            isOpen={!!activeModal}
+            onClose={() => setActiveModal(null)}
+            onConfirm={handleConfirmAction}
+            actionType={activeModal.action}
+            title={
+              activeModal.action === 'remove'
+                ? '컨테이너 강제 삭제 확인'
+                : activeModal.action === 'start'
+                ? '컨테이너 시작 확인'
+                : activeModal.action === 'stop'
+                ? '컨테이너 정지 확인'
+                : '컨테이너 재시작 확인'
+            }
+            description={
+              activeModal.action === 'remove'
+                ? `컨테이너 '${activeModal.container.name}'을(를) 정말 삭제하시겠습니까? 데이터 손실 가능성에 유의하세요.`
+                : `컨테이너 '${activeModal.container.name}'을(를) [${activeModal.action}] 하시겠습니까?`
+            }
+            confirmText={
+              activeModal.action === 'remove'
+                ? '삭제 확정'
+                : activeModal.action === 'start'
+                ? '시작'
+                : activeModal.action === 'stop'
+                ? '정지'
+                : '재시작'
+            }
+            requireMatchText={activeModal.action === 'remove' ? activeModal.container.name : undefined}
+            showRemoveVolumesOption={activeModal.action === 'remove'}
+            attachedVolumes={attachedVols}
+          />
+        );
+      })()}
     </div>
   );
 }
