@@ -25,7 +25,7 @@ export default function Navbar({
   currentUser,
   onOpenLogin,
   onLogout,
-  appTitle = 'FakePortainer',
+  appTitle = 'DockWatch',
 }: NavbarProps) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
 

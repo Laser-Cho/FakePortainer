@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "[Host Entrypoint] Starting FakePortainer Host..."
+echo "[Host Entrypoint] Starting DockWatch Host..."
 
 # /app/data 데이터 저장용 디렉터리 자동 확인 및 생성
 if [ ! -d "/app/data" ]; then

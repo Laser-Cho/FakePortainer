@@ -4,9 +4,9 @@ import path from 'path';
 import crypto from 'crypto';
 import { AgentConfig } from '../../../lib/types';
 
-const MAGIC_HEADER = Buffer.from('FKPT_BIN:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('FakePortainer_Secret_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('FakePortainer_IV_2026').digest();
+const MAGIC_HEADER = Buffer.from('DWPT_BIN:', 'utf-8');
+const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_Secret_Key_2026').digest();
+const SECRET_IV = crypto.createHash('md5').update('DockWatch_IV_2026').digest();
 
 function encryptTextToBinary(text: string): Buffer {
   const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
       const newContent =
         existingLines.length > 0
           ? `${existingLines.join('\n').trim()}\n${newLine}\n`
-          : `# FakePortainer Agent Watch List\n${newLine}\n`;
+          : `# DockWatch Agent Watch List\n${newLine}\n`;
 
       writeWatchListContent(newContent);
     }

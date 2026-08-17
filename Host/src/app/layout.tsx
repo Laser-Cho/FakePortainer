@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FakePortainer - Central Control Plane",
+  title: "DockWatch - Central Control Plane",
   description: "Lightweight Docker Container Management GUI",
 };
 

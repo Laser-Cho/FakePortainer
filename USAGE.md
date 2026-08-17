@@ -1,6 +1,6 @@
-# 🚀 FakePortainer 사용 및 배포 가이드 (USAGE.md)
+# 🚀 DockWatch 사용 및 배포 가이드 (USAGE.md)
 
-이 문서는 **FakePortainer**의 Agent 및 Host 서비스에 대한 **Dockerfile 빌드 방법**, **Docker CLI 실행 방법**, **Docker Compose 레시피**, 및 **운영/보안 가이드**를 설명합니다.
+이 문서는 **DockWatch**의 Agent 및 Host 서비스에 대한 **Dockerfile 빌드 방법**, **Docker CLI 실행 방법**, **Docker Compose 레시피**, 및 **운영/보안 가이드**를 설명합니다.
 
 ---
 
@@ -16,13 +16,13 @@
 ### A. Agent 빌드
 ```bash
 # 프로젝트 루트 디렉터리에서 실행
-docker build -t fake-portainer-agent:latest ./Agent
+docker build -t dockwatch-agent:latest ./Agent
 ```
 
 ### B. Host Control Plane 빌드
 ```bash
 # 프로젝트 루트 디렉터리에서 실행
-docker build -t fake-portainer-host:latest ./Host
+docker build -t dockwatch-host:latest ./Host
 ```
 
 > [!NOTE]
@@ -38,29 +38,29 @@ docker build -t fake-portainer-host:latest ./Host
 
 ```bash
 docker run -d \
-  --name fake-portainer-agent \
+  --name dockwatch-agent \
   -p 9000:9000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e PORT=9000 \
   -e AGENT_SECRET_TOKEN="1" \
   --restart always \
-  fake-portainer-agent:latest
+  dockwatch-agent:latest
 ```
 
 ### B. Host Control Plane 실행 (중앙 제어 서버)
 ```bash
 docker run -d \
-  --name fake-portainer-host \
+  --name dockwatch-host \
   -p 3000:3000 \
   -v ./data:/app/data \
   -e NODE_ENV=production \
-  -e APP_TITLE=FakePortainer \
+  -e APP_TITLE=DockWatch \
   -e ADMIN_USER=admin \
   -e ADMIN_PASSWORD=admin123 \
   -e WATCH_LIST_PATH=/app/data/watch_list.bin \
   -e HISTORY_LOG_PATH=/app/data/history_log.bin \
   --restart always \
-  fake-portainer-host:latest
+  dockwatch-host:latest
 ```
 
 ---
@@ -77,8 +77,8 @@ services:
     build:
       context: ./Agent
       dockerfile: Dockerfile
-    image: fake-portainer-agent:latest
-    container_name: fake-portainer-agent
+    image: dockwatch-agent:latest
+    container_name: dockwatch-agent
     restart: always
     ports:
       - "9000:9000"
@@ -88,14 +88,14 @@ services:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
   host:
     build:
       context: ./Host
       dockerfile: Dockerfile
-    image: fake-portainer-host:latest
-    container_name: fake-portainer-host
+    image: dockwatch-host:latest
+    container_name: dockwatch-host
     restart: always
     ports:
       - "3000:3000"
@@ -103,7 +103,7 @@ services:
       - ./data:/app/data
     environment:
       - PORT=3000
-      - APP_TITLE=FakePortainer
+      - APP_TITLE=DockWatch
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin
@@ -111,11 +111,11 @@ services:
     depends_on:
       - agent
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
 networks:
-  fake_portainer_network:
-    name: fake_portainer_network
+  dockwatch_network:
+    name: dockwatch_network
 ```
 **실행 명령:**
 ```bash
@@ -131,12 +131,12 @@ docker compose up -d
 
 ```yaml
 services:
-  fake-portainer-agent:
+  dockwatch-agent:
     build:
       context: .
       dockerfile: Dockerfile
-    image: fake-portainer-agent:latest
-    container_name: fake-portainer-agent
+    image: dockwatch-agent:latest
+    container_name: dockwatch-agent
     restart: always
     ports:
       - "9000:9000"
@@ -146,11 +146,11 @@ services:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
 networks:
-  fake_portainer_network:
-    name: fake_portainer_network
+  dockwatch_network:
+    name: dockwatch_network
 ```
 **실행 명령:**
 ```bash
@@ -163,12 +163,12 @@ docker compose up -d
 
 ```yaml
 services:
-  fake-portainer-host:
+  dockwatch-host:
     build:
       context: .
       dockerfile: Dockerfile
-    image: fake-portainer-host:latest
-    container_name: fake-portainer-host
+    image: dockwatch-host:latest
+    container_name: dockwatch-host
     restart: always
     ports:
       - "3000:3000"
@@ -177,18 +177,17 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - APP_TITLE=FakePortainer
+      - APP_TITLE=DockWatch
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin
       - HISTORY_LOG_PATH=/app/data/history_log.bin
     networks:
-      - fake_portainer_network
-```
+      - dockwatch_network
 
 networks:
-  fake_portainer_network:
-    name: fake_portainer_network
+  dockwatch_network:
+    name: dockwatch_network
 ```
 **실행 명령:**
 ```bash
@@ -212,8 +211,9 @@ docker compose up -d
 ## ❓ 6. 문제 해결 (Troubleshooting)
 
 - **에이전트 상태가 Offline으로 표시될 때**:
-  1. Agent 컨테이너가 정상 실행 중인지 확인: `docker ps | grep fake-portainer-agent`
+  1. Agent 컨테이너가 정상 실행 중인지 확인: `docker ps | grep dockwatch-agent`
   2. 9000번 포트에 헬스체크 응답 확인: `curl http://<AGENT_IP>:9000/health`
   3. Host 화면에서 등록된 Agent URL 및 Token 값 재확인
-- **`watch_list.txt` 동기화 확인**:
-  - Web UI에서 노드를 추가하거나 삭제하면 호스트 머신의 `watch_list.txt` 파일에 실시간으로 반영됩니다.
+- **`watch_list.bin` 동기화 확인**:
+  - Web UI에서 노드를 추가하거나 삭제하면 호스트 머신의 `watch_list.bin` 파일에 실시간으로 반영됩니다.
+

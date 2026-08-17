@@ -54,11 +54,11 @@
 ### Docker Run 명령 예시:
 ```bash
 docker run -d \
-  --name fake-portainer-agent \
+  --name dockwatch-agent \
   -p 9000:9000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e AGENT_SECRET_TOKEN="1" \
-  fake-portainer-agent:latest
+  dockwatch-agent:latest
 ```
 
 > [!NOTE]

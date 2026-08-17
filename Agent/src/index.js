@@ -30,7 +30,7 @@ app.use(express.json());
 
 // Public health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', agent: 'fake-portainer-agent', timestamp: new Date() });
+  res.json({ status: 'ok', agent: 'dockwatch-agent', timestamp: new Date() });
 });
 
 // Protected API routes
@@ -43,7 +43,7 @@ app.use('/api/system', authMiddleware, systemRoutes);
 setupLogStreamWebSocket(wss);
 
 server.listen(PORT, () => {
-  console.log(`[FakePortainer Agent] Listening on port ${PORT}`);
+  console.log(`[DockWatch Agent] Listening on port ${PORT}`);
   if (!process.env.AGENT_SECRET_TOKEN || process.env.AGENT_SECRET_TOKEN === '1') {
     console.warn(`[SECURITY WARNING] AGENT_SECRET_TOKEN is set to default '1'. Change AGENT_SECRET_TOKEN in production!`);
   }

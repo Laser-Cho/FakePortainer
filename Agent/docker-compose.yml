@@ -1,10 +1,10 @@
 services:
-  fake-portainer-agent:
+  dockwatch-agent:
     build:
       context: .
       dockerfile: Dockerfile
-    image: fake-portainer-agent:latest
-    container_name: fake-portainer-agent
+    image: dockwatch-agent:latest
+    container_name: dockwatch-agent
     restart: always
     ports:
       - "9000:9000"
@@ -14,8 +14,9 @@ services:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
 networks:
-  fake_portainer_network:
-    name: fake_portainer_network
+  dockwatch_network:
+    name: dockwatch_network
+

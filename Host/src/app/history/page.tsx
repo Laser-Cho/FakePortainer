@@ -151,7 +151,7 @@ export default function HistoryPage() {
     }
   };
 
-  const [appTitle, setAppTitle] = useState<string>('FakePortainer');
+  const [appTitle, setAppTitle] = useState<string>('DockWatch');
 
   useEffect(() => {
     fetch('/api/config', { cache: 'no-store' })

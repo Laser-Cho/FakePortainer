@@ -3,8 +3,8 @@ services:
     build:
       context: ./Agent
       dockerfile: Dockerfile
-    image: fake-portainer-agent:latest
-    container_name: fake-portainer-agent
+    image: dockwatch-agent:latest
+    container_name: dockwatch-agent
     restart: always
     ports:
       - "9000:9000"
@@ -14,14 +14,14 @@ services:
       - PORT=9000
       - AGENT_SECRET_TOKEN=1
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
   host:
     build:
       context: ./Host
       dockerfile: Dockerfile
-    image: fake-portainer-host:latest
-    container_name: fake-portainer-host
+    image: dockwatch-host:latest
+    container_name: dockwatch-host
     restart: always
     ports:
       - "3000:3000"
@@ -29,7 +29,7 @@ services:
       - ./data:/app/data
     environment:
       - PORT=3000
-      - APP_TITLE=FakePortainer
+      - APP_TITLE=DockWatch
       - ADMIN_USER=admin
       - ADMIN_PASSWORD=admin123
       - WATCH_LIST_PATH=/app/data/watch_list.bin
@@ -37,8 +37,9 @@ services:
     depends_on:
       - agent
     networks:
-      - fake_portainer_network
+      - dockwatch_network
 
 networks:
-  fake_portainer_network:
-    name: fake_portainer_network
+  dockwatch_network:
+    name: dockwatch_network
+

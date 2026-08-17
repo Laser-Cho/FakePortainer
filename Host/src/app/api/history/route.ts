@@ -26,9 +26,9 @@ function getHistoryFilePath(): string {
   return targetPath;
 }
 
-const MAGIC_HEADER = Buffer.from('FKPTHIST:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('FakePortainer_History_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('FakePortainer_History_IV_2026').digest();
+const MAGIC_HEADER = Buffer.from('DWPTHIST:', 'utf-8');
+const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_History_Key_2026').digest();
+const SECRET_IV = crypto.createHash('md5').update('DockWatch_History_IV_2026').digest();
 
 function readHistoryLogs(): HistoryLogItem[] {
   const filePath = getHistoryFilePath();

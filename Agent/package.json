@@ -1,7 +1,7 @@
 {
-  "name": "fake-portainer-agent",
+  "name": "dockwatch-agent",
   "version": "1.0.0",
-  "description": "FakePortainer Lightweight Docker Agent",
+  "description": "DockWatch Lightweight Docker Agent",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

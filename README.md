@@ -1,6 +1,4 @@
-프로젝트 저장소 위치 : https://github.com/Laser-Cho/FakePortainer.git
-
-# 🐳 FakePortainer (Docker Container Management Dashboard)
+# 🐳 DockWatch (Docker Container Management Dashboard)
 
 Portainer와 유사한 경량 웹 기반 멀티 서버 Docker 컨테이너 관제 및 제어 GUI 애플리케이션입니다.
 

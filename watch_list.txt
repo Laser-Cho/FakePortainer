@@ -1,7 +1,0 @@
-# FakePortainer Agent Watch List
-# Monitored Agent Nodes: 192.168.0.32 (Host Agent), 192.168.0.33, 192.168.0.34
-# Format: Name|URL|Token
-
-Host Agent (192.168.0.32)|http://192.168.0.32:9000|1
-Agent Node 2 (192.168.0.33)|http://192.168.0.33:9000|1
-Agent Node 3 (192.168.0.34)|http://192.168.0.34:9000|1
