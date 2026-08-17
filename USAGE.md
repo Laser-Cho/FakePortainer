@@ -25,12 +25,22 @@ docker build -t dockwatch-agent:latest ./Agent
 docker build -t dockwatch-host:latest ./Host
 ```
 
+### C. Docker Hub 배포 및 푸시
+```bash
+# Docker Hub 공식 배포 이미지
+docker push lasercho/dockwatch-agent:latest
+docker push lasercho/dockwatch-host:latest
+```
+
 > [!NOTE]
 > 폐쇄망 또는 프록시/사설 CA 환경에서 `registry.npmjs.org` SSL 검증 차단 문제를 방지하기 위해, 모든 Dockerfile의 `npm install` 명령에 `npm config set strict-ssl false` 및 `--strict-ssl=false` 옵션이 적용되어 있습니다.
 
 ---
 
-## 🐳 3. Docker Run 직접 실행 방법
+## 🐳 3. Docker Run 직접 실행 방법 (Docker Hub 이미지 사용 가능)
+
+> [!TIP]
+> 로컬 빌드 이미지 `dockwatch-agent:latest` 대신 Docker Hub 이미지 `lasercho/dockwatch-agent:latest`로 즉시 실행할 수 있습니다.
 
 ### A. Agent 노드 실행 (관리 대상 서버)
 > [!IMPORTANT]
@@ -44,7 +54,7 @@ docker run -d \
   -e PORT=9000 \
   -e AGENT_SECRET_TOKEN="1" \
   --restart always \
-  dockwatch-agent:latest
+  lasercho/dockwatch-agent:latest
 ```
 
 ### B. Host Control Plane 실행 (중앙 제어 서버)
@@ -60,7 +70,7 @@ docker run -d \
   -e WATCH_LIST_PATH=/app/data/watch_list.bin \
   -e HISTORY_LOG_PATH=/app/data/history_log.bin \
   --restart always \
-  dockwatch-host:latest
+  lasercho/dockwatch-host:latest
 ```
 
 ---
