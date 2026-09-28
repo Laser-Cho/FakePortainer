@@ -1,9 +1,6 @@
 services:
   dockwatch-host:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: dockwatch-host:latest
+    image: lasercho/dockwatch-host:latest
     container_name: dockwatch-host
     restart: always
     ports:

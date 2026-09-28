@@ -3,7 +3,7 @@ services:
     build:
       context: ./Agent
       dockerfile: Dockerfile
-    image: dockwatch-agent:latest
+    image: lasercho/dockwatch-agent:latest
     container_name: dockwatch-agent
     restart: always
     ports:
@@ -20,7 +20,7 @@ services:
     build:
       context: ./Host
       dockerfile: Dockerfile
-    image: dockwatch-host:latest
+    image: lasercho/dockwatch-host:latest
     container_name: dockwatch-host
     restart: always
     ports:

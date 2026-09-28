@@ -1,9 +1,6 @@
 services:
   dockwatch-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: dockwatch-agent:latest
+    image: lasercho/dockwatch-agent:latest
     container_name: dockwatch-agent
     restart: always
     ports:

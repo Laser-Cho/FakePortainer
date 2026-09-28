@@ -58,7 +58,23 @@ docker run -d \
   -p 9000:9000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e AGENT_SECRET_TOKEN="1" \
-  dockwatch-agent:latest
+  lasercho/dockwatch-agent:latest
+```
+
+### Docker Compose 명령 예시 (`docker-compose.yml`):
+```yaml
+services:
+  dockwatch-agent:
+    image: lasercho/dockwatch-agent:latest
+    container_name: dockwatch-agent
+    restart: always
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=9000
+      - AGENT_SECRET_TOKEN=1
 ```
 
 > [!NOTE]
