@@ -1,23 +1,52 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Lock, ShieldCheck } from 'lucide-react';
+import { X, Lock, ShieldCheck, UserPlus, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import PasswordChangeModal from './PasswordChangeModal';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (token: string, username: string) => void;
+  onLoginSuccess: (token: string, username: string, name?: string, role?: string) => void;
 }
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+
+  // Login form state
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Register form state
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // Expired password modal
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [expiredUsername, setExpiredUsername] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const validateComplexityClient = (pw: string) => {
+    if (pw.length < 8) return false;
+    let count = 0;
+    if (/[a-z]/.test(pw)) count++;
+    if (/[A-Z]/.test(pw)) count++;
+    if (/[0-9]/.test(pw)) count++;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(pw)) count++;
+    return count >= 3;
+  };
+
+  const isRegComplexityMet = validateComplexityClient(regPassword);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -26,76 +55,297 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: loginUsername, password: loginPassword }),
       });
 
       const data = await res.json();
       if (res.ok && data.token) {
-        onLoginSuccess(data.token, data.username || username);
+        if (data.requirePasswordChange) {
+          setExpiredUsername(data.username || loginUsername);
+          setShowExpiredModal(true);
+          return;
+        }
+        onLoginSuccess(data.token, data.username || loginUsername, data.name, data.role);
         onClose();
       } else {
-        setError(data.error || 'Invalid ID or Password');
+        setError(data.error || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || '로그인 요청 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (regPassword !== regConfirmPassword) {
+      setError('비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+      return;
+    }
+
+    if (!isRegComplexityMet) {
+      setError('비밀번호는 영대문자, 영소문자, 숫자, 특수문자 중 3가지 이상을 조합하여 8자 이상이어야 합니다.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: regUsername,
+          password: regPassword,
+          name: regName,
+          email: regEmail,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessMsg(data.message || '회원가입이 완료되었습니다! 생성한 계정으로 로그인해 주세요.');
+        setLoginUsername(regUsername);
+        setLoginPassword('');
+        setRegPassword('');
+        setRegConfirmPassword('');
+        setTimeout(() => {
+          setActiveTab('login');
+          setSuccessMsg('');
+        }, 1800);
+      } else {
+        setError(data.error || '회원가입에 실패했습니다.');
+      }
+    } catch (err: any) {
+      setError(err.message || '회원가입 요청 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-sm p-6 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-          <div className="flex items-center space-x-2">
-            <Lock className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-bold text-slate-100">Control Plane Login</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 bg-rose-950/60 border border-rose-800 text-rose-300 text-xs p-3 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">Username</label>
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center space-x-2 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Sign In</span>
+    <>
+      <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+            <div className="flex items-center space-x-2">
+              <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Control Plane Portal</h2>
+                <p className="text-[11px] text-slate-400">사용자 인증 및 계정 관리</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition">
+              <X className="w-5 h-5" />
             </button>
           </div>
-        </form>
+
+          {/* Tab Selector */}
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 mb-4">
+            <button
+              onClick={() => {
+                setActiveTab('login');
+                setError('');
+                setSuccessMsg('');
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                activeTab === 'login' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              로그인 (Sign In)
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('register');
+                setError('');
+                setSuccessMsg('');
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                activeTab === 'register' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              회원가입 (Sign Up)
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 bg-rose-950/60 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl flex items-center space-x-2">
+              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="mb-4 bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {activeTab === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">사용자 아이디 (ID)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="아이디 입력"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">비밀번호 (Password)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="비밀번호 입력 (5회 연속 실패 시 계정 잠금)"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl shadow-lg transition"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{isLoading ? '인증 중...' : '로그인 (Sign In)'}</span>
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpiredUsername(loginUsername);
+                    setShowExpiredModal(true);
+                  }}
+                  className="text-[11px] text-slate-500 hover:text-blue-400 underline transition"
+                >
+                  비밀번호 재설정이 필요하신가요?
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">사용자 아이디 (ID)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="아이디 (최소 3자 이상)"
+                  value={regUsername}
+                  onChange={(e) => setRegUsername(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">실명 (Full Name)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="홍길동"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">이메일 (Email)</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="user@example.com"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-400">비밀번호</label>
+                  <span className={`text-[10px] font-semibold ${isRegComplexityMet ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {isRegComplexityMet ? '✓ 복잡도 만족' : '영대/소문자, 숫자, 특수문자 중 3종류 8자'}
+                  </span>
+                </div>
+                <input
+                  type="password"
+                  required
+                  placeholder="8자 이상 복잡도 조합"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  className={`w-full bg-slate-950 border rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none transition ${
+                    regPassword ? (isRegComplexityMet ? 'border-emerald-600 focus:border-emerald-500' : 'border-amber-600 focus:border-amber-500') : 'border-slate-800 focus:border-blue-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">비밀번호 확인</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="비밀번호 다시 입력"
+                  value={regConfirmPassword}
+                  onChange={(e) => setRegConfirmPassword(e.target.value)}
+                  className={`w-full bg-slate-950 border rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none transition ${
+                    regConfirmPassword && regConfirmPassword === regPassword ? 'border-emerald-600' : 'border-slate-800 focus:border-blue-500'
+                  }`}
+                />
+              </div>
+
+              <div className="bg-slate-950/80 border border-slate-800/80 p-2.5 rounded-xl text-[11px] text-slate-400 flex items-start space-x-2">
+                <AlertCircle className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                <span>
+                  보안 규정에 따라 비밀번호 유효기간은 <strong>90일</strong>이며, 모든 작업은 접속 IP 및 시간과 함께 감사 로그에 기록됩니다.
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={isLoading || !isRegComplexityMet}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl shadow-lg transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>{isLoading ? '등록 처리 중...' : '회원가입 (Create Account)'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
-    </div>
+
+      {showExpiredModal && (
+        <PasswordChangeModal
+          isOpen={showExpiredModal}
+          onClose={() => setShowExpiredModal(false)}
+          username={expiredUsername}
+          isExpiredPrompt={true}
+          onSuccess={() => {
+            setShowExpiredModal(false);
+            setError('');
+            setSuccessMsg('비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.');
+            setActiveTab('login');
+          }}
+        />
+      )}
+    </>
   );
 }

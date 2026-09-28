@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { HistoryLogItem } from '../../../lib/types';
+import { getClientIp, addSystemLog } from '../../../lib/server/systemLogStore';
+import { getSessionUser } from '../../../lib/server/session';
 
 function getHistoryFilePath(): string {
   const targetPath = process.env.HISTORY_LOG_PATH || '/app/history_log.bin';
@@ -93,12 +95,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const { user: sessionUser } = getSessionUser(request);
+
     const body = await request.json();
-    const { agentName, agentUrl, containerId, containerName, actionType, detail, user } = body;
+    const { agentName, agentUrl, containerId, containerName, actionType, detail, user, userRealName } = body;
 
     if (!actionType || !detail) {
       return NextResponse.json({ error: 'actionType and detail are required' }, { status: 400 });
     }
+
+    const resolvedUser = user || (sessionUser ? sessionUser.username : 'Admin');
+    const resolvedRealName = userRealName || (sessionUser ? sessionUser.name : undefined);
 
     const newItem: HistoryLogItem = {
       id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -109,15 +117,30 @@ export async function POST(request: Request) {
       containerName,
       actionType,
       detail,
-      user: user || 'Admin',
+      user: resolvedUser,
+      userRealName: resolvedRealName,
+      clientIp: clientIp || '127.0.0.1',
     };
 
     const currentLogs = readHistoryLogs();
     currentLogs.push(newItem);
 
-    // Keep up to 2000 history entries
-    const trimmedLogs = currentLogs.slice(-2000);
+    // Keep up to 5000 history entries
+    const trimmedLogs = currentLogs.slice(-5000);
     writeHistoryLogs(trimmedLogs);
+
+    // Also dispatch to system logs
+    try {
+      addSystemLog({
+        clientIp,
+        user: resolvedUser,
+        userRealName: resolvedRealName,
+        category: 'OPERATION',
+        level: actionType.includes('DELETE') ? 'WARN' : 'INFO',
+        action: actionType,
+        detail: `[${agentName || 'Node'}] ${detail}`,
+      });
+    } catch (e) {}
 
     return NextResponse.json({ success: true, item: newItem });
   } catch (err: any) {

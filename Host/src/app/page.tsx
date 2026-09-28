@@ -10,6 +10,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import LogViewerModal from '../components/LogViewerModal';
 import AgentModal from '../components/AgentModal';
 import LoginModal from '../components/LoginModal';
+import PasswordChangeModal from '../components/PasswordChangeModal';
 import ServerLogModal from '../components/ServerLogModal';
 import { AgentConfig, ContainerInfo, ImageInfo, VolumeInfo } from '../lib/types';
 import {
@@ -65,6 +66,9 @@ export default function Home() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [currentUserRealName, setCurrentUserRealName] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerInfo | null>(null);
   const [serverLogAgent, setServerLogAgent] = useState<AgentConfig | null>(null);
@@ -91,6 +95,7 @@ export default function Home() {
           containerId,
           containerName,
           user: currentUser || 'Admin',
+          userRealName: currentUserRealName,
         }),
       });
     } catch (e) {
@@ -120,9 +125,11 @@ export default function Home() {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.authenticated) {
+          if (data.authenticated && data.user) {
             setAuthToken('authenticated');
-            setCurrentUser(data.username || 'Admin');
+            setCurrentUser(data.user.username);
+            setCurrentUserRealName(data.user.name);
+            setCurrentUserRole(data.user.role);
           }
         }
       } catch (e) {
@@ -134,9 +141,11 @@ export default function Home() {
     checkAuth();
   }, []);
 
-  const handleLoginSuccess = (token: string, username: string) => {
+  const handleLoginSuccess = (token: string, username: string, name?: string, role?: string) => {
     setAuthToken(token);
     setCurrentUser(username);
+    if (name) setCurrentUserRealName(name);
+    if (role) setCurrentUserRole(role);
     setIsLoginOpen(false);
   };
 
@@ -146,6 +155,8 @@ export default function Home() {
     } catch (e) {}
     setAuthToken(null);
     setCurrentUser(null);
+    setCurrentUserRealName(null);
+    setCurrentUserRole(null);
   };
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
@@ -446,83 +457,268 @@ export default function Home() {
     );
   }
 
+  // Expired password modal trigger from login gate
+  const [gateExpiredUsername, setGateExpiredUsername] = useState('');
+  const [gateTab, setGateTab] = useState<'login' | 'register'>('login');
+  const [gateRegComplexityMet, setGateRegComplexityMet] = useState(false);
+
   if (!authToken) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-100 relative overflow-hidden select-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl z-10">
-          <div className="flex items-center space-x-3 mb-6">
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur-xl z-10">
+          <div className="flex items-center space-x-3 mb-5">
             <div className="bg-blue-600/20 p-2.5 rounded-xl border border-blue-500/30">
               <Server className="w-7 h-7 text-blue-400" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-100">{appTitle}</h1>
-              <p className="text-xs text-slate-400">Control Plane Dashboard Login</p>
+              <p className="text-xs text-slate-400">Control Plane Dashboard Login & Registration</p>
             </div>
           </div>
 
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const form = e.target as HTMLFormElement;
-              const username = (form.elements.namedItem('username') as HTMLInputElement).value;
-              const password = (form.elements.namedItem('password') as HTMLInputElement).value;
-              const errorEl = document.getElementById('login-error-msg');
-              if (errorEl) errorEl.innerText = '';
-
-              try {
-                const res = await fetch('/api/auth/login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ username, password }),
-                });
-                const data = await res.json();
-                if (res.ok && data.token) {
-                  handleLoginSuccess(data.token, data.username || username);
-                } else {
-                  if (errorEl) errorEl.innerText = data.error || 'Invalid ID or Password';
-                }
-              } catch (err: any) {
-                if (errorEl) errorEl.innerText = err.message || 'Login failed';
-              }
-            }}
-            className="space-y-4"
-          >
-            <div id="login-error-msg" className="text-rose-400 text-xs font-semibold empty:hidden bg-rose-950/60 border border-rose-800/60 p-3 rounded-xl" />
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">ID (Username)</label>
-              <input
-                name="username"
-                type="text"
-                required
-                placeholder="Enter ADMIN_USER"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
-              <input
-                name="password"
-                type="password"
-                required
-                placeholder="Enter ADMIN_PASSWORD"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
-              />
-            </div>
-
+          {/* Tab Selector */}
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 mb-5">
             <button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm py-2.5 rounded-xl shadow-lg hover:shadow-blue-500/25 transition mt-2 flex items-center justify-center space-x-2"
+              onClick={() => {
+                setGateTab('login');
+                const err = document.getElementById('gate-error-msg');
+                if (err) err.innerText = '';
+                const succ = document.getElementById('gate-success-msg');
+                if (succ) succ.innerText = '';
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                gateTab === 'login' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <ShieldAlert className="w-4 h-4" />
-              <span>Sign In to Control Plane</span>
+              로그인 (Sign In)
             </button>
-          </form>
+            <button
+              onClick={() => {
+                setGateTab('register');
+                const err = document.getElementById('gate-error-msg');
+                if (err) err.innerText = '';
+                const succ = document.getElementById('gate-success-msg');
+                if (succ) succ.innerText = '';
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
+                gateTab === 'register' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              회원가입 (Sign Up)
+            </button>
+          </div>
+
+          <div id="gate-error-msg" className="mb-4 text-rose-300 text-xs font-semibold empty:hidden bg-rose-950/60 border border-rose-800/80 p-3 rounded-xl" />
+          <div id="gate-success-msg" className="mb-4 text-emerald-300 text-xs font-semibold empty:hidden bg-emerald-950/60 border border-emerald-800/80 p-3 rounded-xl" />
+
+          {gateTab === 'login' ? (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+                const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+                const errorEl = document.getElementById('gate-error-msg');
+                if (errorEl) errorEl.innerText = '';
+
+                try {
+                  const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.token) {
+                    if (data.requirePasswordChange) {
+                      setGateExpiredUsername(data.username || username);
+                      setIsPasswordChangeOpen(true);
+                      return;
+                    }
+                    handleLoginSuccess(data.token, data.username || username, data.name, data.role);
+                  } else {
+                    if (errorEl) errorEl.innerText = data.error || '아이디 또는 비밀번호가 올바르지 않습니다.';
+                  }
+                } catch (err: any) {
+                  if (errorEl) errorEl.innerText = err.message || '로그인 요청 중 오류가 발생했습니다.';
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">사용자 아이디 (ID)</label>
+                <input
+                  name="username"
+                  type="text"
+                  required
+                  placeholder="아이디 입력"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">비밀번호 (Password)</label>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  placeholder="비밀번호 입력 (연속 5회 실패 시 계정 잠금)"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm py-2.5 rounded-xl shadow-lg hover:shadow-blue-500/25 transition mt-2 flex items-center justify-center space-x-2"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                <span>대시보드 로그인 (Sign In)</span>
+              </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordChangeOpen(true)}
+                  className="text-[11px] text-slate-500 hover:text-blue-400 underline transition"
+                >
+                  비밀번호 90일 만료 재설정 / 변경
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const username = (form.elements.namedItem('reg_username') as HTMLInputElement).value;
+                const password = (form.elements.namedItem('reg_password') as HTMLInputElement).value;
+                const confirmPassword = (form.elements.namedItem('reg_confirm') as HTMLInputElement).value;
+                const name = (form.elements.namedItem('reg_name') as HTMLInputElement).value;
+                const email = (form.elements.namedItem('reg_email') as HTMLInputElement).value;
+
+                const errorEl = document.getElementById('gate-error-msg');
+                const successEl = document.getElementById('gate-success-msg');
+                if (errorEl) errorEl.innerText = '';
+                if (successEl) successEl.innerText = '';
+
+                if (password !== confirmPassword) {
+                  if (errorEl) errorEl.innerText = '비밀번호와 비밀번호 확인이 일치하지 않습니다.';
+                  return;
+                }
+
+                try {
+                  const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, name, email }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.success) {
+                    if (successEl) successEl.innerText = '회원가입이 완료되었습니다! 로그인 탭에서 로그인해 주세요.';
+                    setTimeout(() => setGateTab('login'), 1500);
+                  } else {
+                    if (errorEl) errorEl.innerText = data.error || '회원가입에 실패했습니다.';
+                  }
+                } catch (err: any) {
+                  if (errorEl) errorEl.innerText = err.message || '회원가입 중 오류가 발생했습니다.';
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">사용자 아이디 (ID)</label>
+                <input
+                  name="reg_username"
+                  type="text"
+                  required
+                  placeholder="최소 3자 이상"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">실명 (Full Name)</label>
+                  <input
+                    name="reg_name"
+                    type="text"
+                    required
+                    placeholder="홍길동"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">이메일 (Email)</label>
+                  <input
+                    name="reg_email"
+                    type="email"
+                    required
+                    placeholder="user@example.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-400">비밀번호</label>
+                  <span className={`text-[10px] font-semibold ${gateRegComplexityMet ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {gateRegComplexityMet ? '✓ 복잡도 만족' : '영대/소문자, 숫자, 특수문자 중 3종류 8자'}
+                  </span>
+                </div>
+                <input
+                  name="reg_password"
+                  type="password"
+                  required
+                  placeholder="영대/소문자, 숫자, 특수문자 조합"
+                  onChange={(e) => {
+                    const pw = e.target.value;
+                    let count = 0;
+                    if (/[a-z]/.test(pw)) count++;
+                    if (/[A-Z]/.test(pw)) count++;
+                    if (/[0-9]/.test(pw)) count++;
+                    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(pw)) count++;
+                    setGateRegComplexityMet(pw.length >= 8 && count >= 3);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">비밀번호 확인</label>
+                <input
+                  name="reg_confirm"
+                  type="password"
+                  required
+                  placeholder="비밀번호 다시 입력"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm py-2 rounded-xl shadow-lg hover:shadow-blue-500/25 transition mt-2 flex items-center justify-center space-x-2"
+              >
+                <span>회원가입 완료</span>
+              </button>
+            </form>
+          )}
         </div>
+
+        {isPasswordChangeOpen && (
+          <PasswordChangeModal
+            isOpen={isPasswordChangeOpen}
+            onClose={() => setIsPasswordChangeOpen(false)}
+            username={gateExpiredUsername || ''}
+            isExpiredPrompt={!!gateExpiredUsername}
+            onSuccess={() => {
+              setIsPasswordChangeOpen(false);
+              setGateExpiredUsername('');
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -537,8 +733,11 @@ export default function Home() {
         onOpenAddAgent={() => setIsAddAgentOpen(true)}
         isAuthenticated={!!authToken}
         currentUser={currentUser}
+        currentUserRealName={currentUserRealName}
+        currentUserRole={currentUserRole}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
+        onOpenChangePassword={() => setIsPasswordChangeOpen(true)}
       />
 
       <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-h-[calc(100vh-61px)]">
@@ -793,6 +992,15 @@ export default function Home() {
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+      />
+
+      <PasswordChangeModal
+        isOpen={isPasswordChangeOpen}
+        onClose={() => setIsPasswordChangeOpen(false)}
+        username={currentUser || ''}
+        onSuccess={() => {
+          setIsPasswordChangeOpen(false);
+        }}
       />
 
       <LogViewerModal

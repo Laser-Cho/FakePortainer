@@ -76,7 +76,7 @@ export default function Sidebar({
               }`}
             >
               <History className={`w-4 h-4 ${isHistoryActive ? 'text-white' : 'text-amber-400'}`} />
-              <span>이력 추적 (History Log)</span>
+              <span>사용자 작업 내역 & 로그</span>
             </Link>
           </div>
         </div>

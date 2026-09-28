@@ -66,9 +66,11 @@ docker run -d \
   -e NODE_ENV=production \
   -e APP_TITLE=DockWatch \
   -e ADMIN_USER=admin \
-  -e ADMIN_PASSWORD=admin123 \
+  -e ADMIN_PASSWORD=Admin123!@# \
   -e WATCH_LIST_PATH=/app/data/watch_list.bin \
   -e HISTORY_LOG_PATH=/app/data/history_log.bin \
+  -e USERS_PATH=/app/data/users.bin \
+  -e SYSTEM_LOG_PATH=/app/data/system_logs.bin \
   --restart always \
   lasercho/dockwatch-host:latest
 ```
@@ -115,9 +117,11 @@ services:
       - PORT=3000
       - APP_TITLE=DockWatch
       - ADMIN_USER=admin
-      - ADMIN_PASSWORD=admin123
+      - ADMIN_PASSWORD=Admin123!@#
       - WATCH_LIST_PATH=/app/data/watch_list.bin
       - HISTORY_LOG_PATH=/app/data/history_log.bin
+      - USERS_PATH=/app/data/users.bin
+      - SYSTEM_LOG_PATH=/app/data/system_logs.bin
     depends_on:
       - agent
     networks:
@@ -189,9 +193,11 @@ services:
       - PORT=3000
       - APP_TITLE=DockWatch
       - ADMIN_USER=admin
-      - ADMIN_PASSWORD=admin123
+      - ADMIN_PASSWORD=Admin123!@#
       - WATCH_LIST_PATH=/app/data/watch_list.bin
       - HISTORY_LOG_PATH=/app/data/history_log.bin
+      - USERS_PATH=/app/data/users.bin
+      - SYSTEM_LOG_PATH=/app/data/system_logs.bin
     networks:
       - dockwatch_network
 

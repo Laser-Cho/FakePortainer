@@ -5,6 +5,7 @@ import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import ConfirmModal from '../../components/ConfirmModal';
 import VolumeTable from '../../components/VolumeTable';
+import PasswordChangeModal from '../../components/PasswordChangeModal';
 import { AgentConfig, VolumeInfo } from '../../lib/types';
 import { checkAgentHealth, fetchVolumes, deleteVolume } from '../../lib/api';
 import { HardDrive, RefreshCw, Search, Server, Box, Trash2, Database, ShieldAlert, Layers } from 'lucide-react';
@@ -23,8 +24,11 @@ export default function VolumesPage() {
   // Modals & Auth State
   const [isAddAgentOpen, setIsAddAgentOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [currentUserRealName, setCurrentUserRealName] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchWatchListAgents = useCallback(async () => {
     try {
@@ -88,9 +92,11 @@ export default function VolumesPage() {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.authenticated) {
+          if (data.authenticated && data.user) {
             setAuthToken('authenticated');
-            setCurrentUser(data.username || 'Admin');
+            setCurrentUser(data.user.username);
+            setCurrentUserRealName(data.user.name);
+            setCurrentUserRole(data.user.role);
           }
         }
       } catch (e) {}
@@ -114,6 +120,7 @@ export default function VolumesPage() {
           actionType,
           detail,
           user: currentUser || 'Admin',
+          userRealName: currentUserRealName,
         }),
       });
     } catch (e) {
@@ -240,8 +247,11 @@ export default function VolumesPage() {
         onOpenAddAgent={() => setIsAddAgentOpen(true)}
         isAuthenticated={!!authToken}
         currentUser={currentUser}
+        currentUserRealName={currentUserRealName}
+        currentUserRole={currentUserRole}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
+        onOpenChangePassword={() => setIsPasswordChangeOpen(true)}
       />
 
       <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-h-[calc(100vh-61px)]">
@@ -302,6 +312,14 @@ export default function VolumesPage() {
           description={`볼륨 '${deleteTarget.volume.name}'을(를) 삭제하시겠습니까? 볼륨 내부 데이터가 완전히 제거됩니다.`}
           confirmText="볼륨 영구 삭제"
           requireMatchText={deleteTarget.volume.name}
+        />
+      )}
+
+      {isPasswordChangeOpen && (
+        <PasswordChangeModal
+          isOpen={isPasswordChangeOpen}
+          onClose={() => setIsPasswordChangeOpen(false)}
+          username={currentUser || ''}
         />
       )}
     </div>

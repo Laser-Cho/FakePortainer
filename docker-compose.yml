@@ -31,9 +31,11 @@ services:
       - PORT=3000
       - APP_TITLE=DockWatch
       - ADMIN_USER=admin
-      - ADMIN_PASSWORD=admin123
+      - ADMIN_PASSWORD=Admin123!@#
       - WATCH_LIST_PATH=/app/data/watch_list.bin
       - HISTORY_LOG_PATH=/app/data/history_log.bin
+      - USERS_PATH=/app/data/users.bin
+      - SYSTEM_LOG_PATH=/app/data/system_logs.bin
     depends_on:
       - agent
     networks:

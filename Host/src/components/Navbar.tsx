@@ -11,8 +11,11 @@ interface NavbarProps {
   onOpenAddAgent: () => void;
   isAuthenticated: boolean;
   currentUser?: string | null;
+  currentUserRealName?: string | null;
+  currentUserRole?: string | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onOpenChangePassword?: () => void;
   appTitle?: string;
 }
 
@@ -23,8 +26,11 @@ export default function Navbar({
   onOpenAddAgent,
   isAuthenticated,
   currentUser,
+  currentUserRealName,
+  currentUserRole,
   onOpenLogin,
   onLogout,
+  onOpenChangePassword,
   appTitle = 'DockWatch',
 }: NavbarProps) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -91,9 +97,27 @@ export default function Navbar({
 
         {isAuthenticated ? (
           <div className="flex items-center space-x-2">
-            <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md font-mono">
-              User: <strong className="text-blue-400 font-semibold">{currentUser || 'Admin'}</strong>
+            <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md font-mono flex items-center space-x-1.5">
+              <span>{currentUserRealName ? `${currentUserRealName} (${currentUser})` : currentUser || 'Admin'}</span>
+              {currentUserRole && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                  currentUserRole === 'admin' ? 'bg-amber-900/60 text-amber-300 border border-amber-700/60' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  {currentUserRole}
+                </span>
+              )}
             </span>
+
+            {onOpenChangePassword && (
+              <button
+                onClick={onOpenChangePassword}
+                title="비밀번호 재설정 / 변경"
+                className="p-1.5 text-slate-400 hover:text-amber-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             <button
               onClick={onLogout}
               className="flex items-center space-x-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-900/50 px-3 py-1.5 rounded-lg transition"

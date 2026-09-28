@@ -1,135 +1,11 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import { AgentConfig } from '../../../lib/types';
-
-const MAGIC_HEADER = Buffer.from('DWPT_BIN:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_Secret_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('DockWatch_IV_2026').digest();
-
-function encryptTextToBinary(text: string): Buffer {
-  const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-  const encrypted = Buffer.concat([cipher.update(text, 'utf-8'), cipher.final()]);
-  return Buffer.concat([MAGIC_HEADER, encrypted]);
-}
-
-function decryptBinaryToText(buffer: Buffer): string {
-  if (buffer.length >= MAGIC_HEADER.length && buffer.subarray(0, MAGIC_HEADER.length).equals(MAGIC_HEADER)) {
-    const encryptedData = buffer.subarray(MAGIC_HEADER.length);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-    const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-    return decrypted.toString('utf-8');
-  }
-  // Fallback for legacy plain text file
-  return buffer.toString('utf-8');
-}
-
-function getWatchListFilePath(): string {
-  const candidates = [
-    process.env.WATCH_LIST_PATH,
-    '/app/watch_list.bin',
-    '/app/watch_list.txt',
-    path.join(process.cwd(), 'watch_list.bin'),
-    path.join(process.cwd(), 'watch_list.txt'),
-    path.join(process.cwd(), '..', 'watch_list.bin'),
-    path.join(process.cwd(), '..', 'watch_list.txt'),
-  ].filter(Boolean) as string[];
-
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) {
-        const stat = fs.statSync(p);
-        if (stat.isFile()) return p;
-        if (stat.isDirectory()) {
-          const innerFile = path.join(p, 'data.bin');
-          if (!fs.existsSync(innerFile)) {
-            fs.writeFileSync(innerFile, '');
-          }
-          return innerFile;
-        }
-      }
-    } catch (e) {}
-  }
-  const defaultPath = process.env.WATCH_LIST_PATH || '/app/watch_list.txt';
-  try {
-    if (!fs.existsSync(defaultPath)) {
-      fs.writeFileSync(defaultPath, '');
-    }
-  } catch (e) {}
-  return defaultPath;
-}
-
-function parseAgentsFromFileContent(fileContent: string): AgentConfig[] {
-  const agents: AgentConfig[] = [];
-  const defaultToken = process.env.DEFAULT_AGENT_TOKEN || '1';
-
-  if (!fileContent) return agents;
-
-  const lines = fileContent.split(/\r?\n/);
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) return;
-
-    const parts = trimmed.split('|').map((p) => p.trim());
-    let name = '';
-    let url = '';
-    let token = defaultToken;
-
-    if (parts.length >= 3) {
-      name = parts[0];
-      url = parts[1];
-      token = parts[2];
-    } else if (parts.length === 2) {
-      name = parts[0];
-      url = parts[1];
-    } else {
-      url = parts[0];
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `http://${url}`;
-      }
-      try {
-        const parsedUrl = new URL(url);
-        name = `Agent (${parsedUrl.hostname})`;
-      } catch {
-        name = `Agent ${index + 1}`;
-      }
-    }
-
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `http://${url}`;
-    }
-
-    agents.push({
-      id: `watch-agent-${index + 1}`,
-      name,
-      url: url.replace(/\/$/, ''),
-      token: token || defaultToken,
-      isOnline: false,
-    });
-  });
-
-  return agents;
-}
-
-function readWatchListContent(): string {
-  const filePath = getWatchListFilePath();
-  if (fs.existsSync(filePath)) {
-    try {
-      const buffer = fs.readFileSync(filePath);
-      return decryptBinaryToText(buffer);
-    } catch (e) {
-      console.error(`[WatchList API] Failed to read ${filePath}`, e);
-    }
-  }
-  return '';
-}
-
-function writeWatchListContent(content: string): void {
-  const filePath = getWatchListFilePath();
-  const binaryBuffer = encryptTextToBinary(content);
-  fs.writeFileSync(filePath, binaryBuffer);
-}
+import {
+  readWatchListContent,
+  writeWatchListContent,
+  parseAgentsFromFileContent,
+} from '../../../lib/server/agentStore';
+import { addSystemLog, getClientIp } from '../../../lib/server/systemLogStore';
+import { getSessionUser } from '../../../lib/server/session';
 
 export async function GET(request: Request) {
   const fileContent = readWatchListContent();
@@ -138,6 +14,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request);
+  const { user } = getSessionUser(request);
   try {
     const body = await request.json();
     const { name, url, token } = body;
@@ -175,6 +53,16 @@ export async function POST(request: Request) {
           : `# DockWatch Agent Watch List\n${newLine}\n`;
 
       writeWatchListContent(newContent);
+
+      addSystemLog({
+        clientIp,
+        user: user ? user.username : 'Admin',
+        userRealName: user ? user.name : undefined,
+        category: 'USER_MGMT',
+        level: 'INFO',
+        action: 'AGENT_NODE_ADDED',
+        detail: `새로운 에이전트 노드 등록: [${targetName}] URL: ${targetUrl} (IP: ${clientIp})`,
+      });
     }
 
     const updatedContent = readWatchListContent();
@@ -187,6 +75,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const clientIp = getClientIp(request);
+  const { user } = getSessionUser(request);
   try {
     const body = await request.json();
     const { url, id } = body;
@@ -228,6 +118,16 @@ export async function DELETE(request: Request) {
     const newContent = filteredLines.join('\n').trim() + '\n';
     writeWatchListContent(newContent);
 
+    addSystemLog({
+      clientIp,
+      user: user ? user.username : 'Admin',
+      userRealName: user ? user.name : undefined,
+      category: 'USER_MGMT',
+      level: 'WARN',
+      action: 'AGENT_NODE_REMOVED',
+      detail: `에이전트 노드 등록 해제: ${url || id} (IP: ${clientIp})`,
+    });
+
     const updatedContent = readWatchListContent();
     const agents = parseAgentsFromFileContent(updatedContent);
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
@@ -236,4 +136,3 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: err.message || 'Failed to delete agent from watch_list' }, { status: 500 });
   }
 }
-

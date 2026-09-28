@@ -44,8 +44,8 @@
 
 ## 3. 기술 스택 및 구조
 - **Frontend:** Next.js (React) + TypeScript + Tailwind CSS + Lucide React (깔끔하고 세련된 다크 모드 기본 테마)
-- **Backend (Host Controller):** Next.js App Router API Routes (`/api/proxy`, `/api/agents`, `/api/config`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`)
-- **데이터 저장:** `watch_list.bin` 및 `history_log.bin` (AES-256-CBC 암호화 바이너리 마운트 연동) 및 세션 쿠키
+- **Backend (Host Controller):** Next.js App Router API Routes (`/api/proxy`, `/api/agents`, `/api/config`, `/api/cluster/containers`, `/api/auth/*`, `/api/users`, `/api/system-logs`, `/api/history`)
+- **데이터 저장:** `watch_list.bin`, `history_log.bin`, `users.bin`, `system_logs.bin` (AES-256-CBC 암호화 바이너리 마운트 연동) 및 세션 쿠키
 - **통신 클라이언트:** 
   - REST API Client (`fetch`): Host 백엔드 프록시 중계를 통한 에이전트 제어 및 상태 수집
   - WebSocket Client: 실시간 로그 스트리밍 중계 수신용
@@ -67,6 +67,7 @@
 - [x] **[Phase 11] Host 백엔드 프록시 (Proxy) 구조 적용**: 외부 DDNS 및 모바일 망 접속 시 사설 IP 통신 실패 문제를 차단하기 위해 Host 서버 백엔드 중계 방식 적용
 - [x] **[Phase 12] All Nodes Cluster 도커 볼륨 관제 통합**: `VolumeTable.tsx` 구현 및 대시보드 탭 순서 최적화 (`containers` -> `images` -> `volumes` -> `agents`), 볼륨 통계 카드 추가
 - [x] **[Phase 13] 컨테이너 바인딩 볼륨 동시 삭제 & Dynamic APP_TITLE**: 컨테이너 삭제 팝업 연관 볼륨 파싱/선택 삭제 지원, `GET /api/config` 타이틀 연동, 이력 추적 페이지 UI 고도화
+- [x] **[Phase 14] 사용자별 회원가입/계정 관리 & 보안 정책 & 시스템 로그 & 전 서버 도커 API**: 실명/이메일 회원가입, 3종류 조합 8자 복잡도, 90일 만료 재설정, 5회 실패 잠금, 작업자 IP/시간 병기 감사 로그, 시스템 보안 로그 페이지, 전 서버 도커 목록/상태 일괄 반환 API (`GET /api/cluster/containers`) 구현
 
 
 ---

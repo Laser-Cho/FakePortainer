@@ -1,24 +1,27 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { getSessionUser } from '../../../../lib/server/session';
+import { isPasswordExpired } from '../../../../lib/server/userStore';
 
 export async function GET(request: Request) {
-  const expectedUser = process.env.ADMIN_USER || 'admin';
-  const expectedPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWD || 'admin123';
+  const { session, user } = getSessionUser(request);
 
-  const expectedToken = crypto
-    .createHash('sha256')
-    .update(`${expectedUser}:${expectedPassword}:fakeportainer-secret`)
-    .digest('hex');
-
-  const authCookie = request.headers.get('cookie') || '';
-  const tokenMatch = authCookie.includes(`fakeportainer_session=${expectedToken}`);
-
-  const authHeader = request.headers.get('authorization') || '';
-  const bearerMatch = authHeader === `Bearer ${expectedToken}`;
-
-  if (tokenMatch || bearerMatch) {
-    return NextResponse.json({ authenticated: true, username: expectedUser });
+  if (!session || !user) {
+    return NextResponse.json({ authenticated: false }, { status: 401 });
   }
 
-  return NextResponse.json({ authenticated: false }, { status: 401 });
+  const requirePasswordChange = isPasswordExpired(user.passwordChangedAt);
+
+  return NextResponse.json({
+    authenticated: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      requirePasswordChange,
+      createdAt: user.createdAt,
+      passwordChangedAt: user.passwordChangedAt,
+    },
+  });
 }
