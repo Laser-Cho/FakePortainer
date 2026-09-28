@@ -448,6 +448,11 @@ export default function Home() {
   const stoppedCount = containers.filter((c) => c.state !== 'running').length;
   const onlineAgentsCount = agents.filter((a) => a.isOnline).length;
 
+  // Expired password modal trigger from login gate
+  const [gateExpiredUsername, setGateExpiredUsername] = useState('');
+  const [gateTab, setGateTab] = useState<'login' | 'register'>('login');
+  const [gateRegComplexityMet, setGateRegComplexityMet] = useState(false);
+
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 font-sans">
@@ -456,11 +461,6 @@ export default function Home() {
       </div>
     );
   }
-
-  // Expired password modal trigger from login gate
-  const [gateExpiredUsername, setGateExpiredUsername] = useState('');
-  const [gateTab, setGateTab] = useState<'login' | 'register'>('login');
-  const [gateRegComplexityMet, setGateRegComplexityMet] = useState(false);
 
   if (!authToken) {
     return (
