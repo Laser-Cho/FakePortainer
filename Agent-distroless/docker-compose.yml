@@ -1,6 +1,6 @@
 services:
   dockwatch-agent:
-    image: lasercho/dockwatch-agent:latest
+    image: lasercho/dockwatch-agent-distroless:latest
     container_name: dockwatch-agent
     restart: always
     ports:

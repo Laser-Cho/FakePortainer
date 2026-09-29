@@ -1,6 +1,6 @@
 services:
   dockwatch-host:
-    image: lasercho/dockwatch-host:latest
+    image: lasercho/dockwatch-host-distroless:latest
     container_name: dockwatch-host
     restart: always
     ports:
