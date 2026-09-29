@@ -1,0 +1,26 @@
+services:
+  dockwatch-host:
+    image: lasercho/dockwatch-host:latest
+    container_name: dockwatch-host
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - APP_TITLE=DockWatch
+      - ADMIN_USER=admin
+      - ADMIN_PASSWORD=Admin123!@#
+      - WATCH_LIST_PATH=/app/data/watch_list.bin
+      - HISTORY_LOG_PATH=/app/data/history_log.bin
+      - USERS_PATH=/app/data/users.bin
+      - SYSTEM_LOG_PATH=/app/data/system_logs.bin
+    networks:
+      - dockwatch_network
+
+networks:
+  dockwatch_network:
+    name: dockwatch_network
+

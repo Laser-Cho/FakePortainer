@@ -1,0 +1,19 @@
+services:
+  dockwatch-agent:
+    image: lasercho/dockwatch-agent:latest
+    container_name: dockwatch-agent
+    restart: always
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=9000
+      - AGENT_SECRET_TOKEN=1
+    networks:
+      - dockwatch_network
+
+networks:
+  dockwatch_network:
+    name: dockwatch_network
+
