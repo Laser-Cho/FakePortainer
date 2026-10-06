@@ -1,9 +1,29 @@
 import { NextResponse } from 'next/server';
+import { getSessionUser } from '../../../lib/server/session';
+import { addSystemLog } from '../../../lib/server/systemLogStore';
 
 export async function POST(request: Request) {
   try {
+    const { session, user } = getSessionUser(request);
+    if (!user || user.isLocked) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { agentUrl, endpoint, method = 'GET', headers = {}, payload } = body;
+
+    if (user.role === 'monitor' && method !== 'GET') {
+      addSystemLog({
+        clientIp: request.headers.get('x-forwarded-for') || 'unknown',
+        user: user.username,
+        userRealName: user.name,
+        category: 'ACCESS_DENIED',
+        level: 'WARN',
+        action: 'PROXY_METHOD_DENIED',
+        detail: `모니터링 권한 사용자가 [${method}] ${endpoint} API 호출을 시도하여 차단되었습니다.`
+      });
+      return NextResponse.json({ error: 'Permission denied: Monitor role cannot perform this action.' }, { status: 403 });
+    }
 
     if (!agentUrl || !endpoint) {
       return NextResponse.json({ error: 'agentUrl and endpoint are required' }, { status: 400 });

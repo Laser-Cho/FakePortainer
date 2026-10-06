@@ -9,9 +9,10 @@ interface ImageTableProps {
   images: ImageInfo[];
   isLoading: boolean;
   onPrune: () => void;
+  currentUserRole?: string | null;
 }
 
-export default function ImageTable({ images, isLoading, onPrune }: ImageTableProps) {
+export default function ImageTable({ images, isLoading, onPrune, currentUserRole }: ImageTableProps) {
   const [isPruneModalOpen, setIsPruneModalOpen] = useState(false);
 
   const formatBytes = (bytes: number) => {

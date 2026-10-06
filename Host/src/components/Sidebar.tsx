@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AgentConfig } from '../lib/types';
-import { Globe, Plus, ChevronRight, Server, History, Terminal, HardDrive } from 'lucide-react';
+import { Globe, Plus, ChevronRight, Server, History, Terminal, HardDrive, Activity } from 'lucide-react';
 
 interface SidebarProps {
   agents: AgentConfig[];
@@ -25,6 +25,7 @@ export default function Sidebar({
   const onlineCount = agents.filter((a) => a.isOnline).length;
   const isHistoryActive = pathname === '/history';
   const isVolumesActive = pathname === '/volumes';
+  const isHtopActive = pathname === '/htop';
 
   return (
     <aside className="w-64 md:w-72 bg-slate-900/80 border-r border-slate-800 flex flex-col shrink-0 min-h-[calc(100vh-61px)]">
@@ -38,18 +39,18 @@ export default function Sidebar({
             <Link
               href="/"
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
-                !isHistoryActive && !isVolumesActive && selectedAgentId === 'all'
+                !isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 border border-blue-500'
                   : 'text-slate-300 hover:bg-slate-800/80 border border-slate-800/50'
               }`}
               onClick={() => onSelectAgent('all')}
             >
               <div className="flex items-center space-x-2.5">
-                <Globe className={`w-4 h-4 ${!isHistoryActive && !isVolumesActive && selectedAgentId === 'all' ? 'text-white' : 'text-blue-400'}`} />
+                <Globe className={`w-4 h-4 ${!isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all' ? 'text-white' : 'text-blue-400'}`} />
                 <span>All Nodes Cluster</span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                !isHistoryActive && !isVolumesActive && selectedAgentId === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                !isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
               }`}>
                 {agents.length} Nodes
               </span>
@@ -77,6 +78,18 @@ export default function Sidebar({
             >
               <History className={`w-4 h-4 ${isHistoryActive ? 'text-white' : 'text-amber-400'}`} />
               <span>사용자 작업 내역 & 로그</span>
+            </Link>
+
+            <Link
+              href="/htop"
+              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                pathname === '/htop'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 border border-blue-500'
+                  : 'text-slate-300 hover:bg-slate-800/80 border border-slate-800/50'
+              }`}
+            >
+              <Activity className={`w-4 h-4 ${pathname === '/htop' ? 'text-white' : 'text-emerald-400'}`} />
+              <span>서버 상황 조회 (htop)</span>
             </Link>
           </div>
         </div>

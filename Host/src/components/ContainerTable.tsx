@@ -11,6 +11,7 @@ interface ContainerTableProps {
   isLoading: boolean;
   onControl: (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove', removeVolumes?: boolean) => void;
   onOpenLogs: (container: ContainerInfo) => void;
+  currentUserRole?: string | null;
 }
 
 export default function ContainerTable({
@@ -19,6 +20,7 @@ export default function ContainerTable({
   isLoading,
   onControl,
   onOpenLogs,
+  currentUserRole,
 }: ContainerTableProps) {
   const hasNodeColumn = containers.some((c) => !!c.agentName);
 
@@ -66,7 +68,7 @@ export default function ContainerTable({
               <th className="px-6 py-4">Docker Compose File</th>
               <th className="px-6 py-4">Docker Network / Bridge</th>
               <th className="px-6 py-4">Ports</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              {currentUserRole !== 'monitor' && <th className="px-6 py-4 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
@@ -184,51 +186,53 @@ export default function ContainerTable({
                     )}
                   </td>
 
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end space-x-1">
-                      {isRunning ? (
+                  {currentUserRole !== 'monitor' && (
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-1">
+                        {isRunning ? (
+                          <button
+                            onClick={() => setActiveModal({ container, action: 'stop' })}
+                            title="Stop Container"
+                            className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-400 hover:text-rose-300 transition"
+                          >
+                            <Square className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setActiveModal({ container, action: 'start' })}
+                            title="Start Container"
+                            className="p-1.5 rounded-md hover:bg-emerald-950/50 text-emerald-400 hover:text-emerald-300 transition"
+                          >
+                            <Play className="w-4 h-4" />
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => setActiveModal({ container, action: 'stop' })}
-                          title="Stop Container"
-                          className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-400 hover:text-rose-300 transition"
+                          onClick={() => setActiveModal({ container, action: 'restart' })}
+                          title="Restart Container"
+                          className="p-1.5 rounded-md hover:bg-blue-950/50 text-blue-400 hover:text-blue-300 transition"
                         >
-                          <Square className="w-4 h-4" />
+                          <RotateCw className="w-4 h-4" />
                         </button>
-                      ) : (
+
                         <button
-                          onClick={() => setActiveModal({ container, action: 'start' })}
-                          title="Start Container"
-                          className="p-1.5 rounded-md hover:bg-emerald-950/50 text-emerald-400 hover:text-emerald-300 transition"
+                          onClick={() => onOpenLogs(container)}
+                          title="View Realtime Logs"
+                          className="p-1.5 rounded-md hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition"
                         >
-                          <Play className="w-4 h-4" />
+                          <FileText className="w-4 h-4" />
                         </button>
-                      )}
 
-                      <button
-                        onClick={() => setActiveModal({ container, action: 'restart' })}
-                        title="Restart Container"
-                        className="p-1.5 rounded-md hover:bg-blue-950/50 text-blue-400 hover:text-blue-300 transition"
-                      >
-                        <RotateCw className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => onOpenLogs(container)}
-                        title="View Realtime Logs"
-                        className="p-1.5 rounded-md hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => setActiveModal({ container, action: 'remove' })}
-                        title="Remove Container"
-                        className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-500 hover:text-rose-400 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+                        <button
+                          onClick={() => setActiveModal({ container, action: 'remove' })}
+                          title="Remove Container"
+                          className="p-1.5 rounded-md hover:bg-rose-950/50 text-rose-500 hover:text-rose-400 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}

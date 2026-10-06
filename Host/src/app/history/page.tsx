@@ -218,7 +218,7 @@ export default function HistoryPage() {
     }
   };
 
-  const handleRoleChange = async (userId: string, username: string, newRole: 'admin' | 'user') => {
+  const handleRoleChange = async (userId: string, username: string, newRole: 'admin' | 'user' | 'monitor') => {
     try {
       const res = await fetch('/api/users', {
         method: 'PATCH',
@@ -740,13 +740,16 @@ export default function HistoryPage() {
                           <select
                             value={u.role}
                             disabled={u.username === currentUser}
-                            onChange={(e) => handleRoleChange(u.id, u.username, e.target.value as 'admin' | 'user')}
+                            onChange={(e) => handleRoleChange(u.id, u.username, e.target.value as 'admin' | 'user' | 'monitor')}
                             className={`text-xs font-semibold px-2 py-1 rounded border focus:outline-none cursor-pointer ${
                               u.role === 'admin'
                                 ? 'bg-amber-950/80 text-amber-300 border-amber-800'
+                                : u.role === 'monitor'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                                 : 'bg-slate-800 text-slate-300 border-slate-700'
                             }`}
                           >
+                            <option value="monitor" className="bg-slate-900 text-slate-200">MONITOR (모니터링 계정)</option>
                             <option value="user" className="bg-slate-900 text-slate-200">USER (일반 사용자)</option>
                             <option value="admin" className="bg-slate-900 text-slate-200">ADMIN (시스템 관리자)</option>
                           </select>

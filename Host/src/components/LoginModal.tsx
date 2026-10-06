@@ -23,6 +23,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regRole, setRegRole] = useState<'admin' | 'user' | 'monitor'>('user');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -103,6 +104,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           password: regPassword,
           name: regName,
           email: regEmail,
+          role: regRole,
         }),
       });
 
@@ -275,6 +277,19 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">계정 유형 (Role)</label>
+                <select
+                  value={regRole}
+                  onChange={(e) => setRegRole(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="monitor">모니터링 (Read-only)</option>
+                  <option value="user">일반 계정 (CRUD, no user mgmt)</option>
+                  <option value="admin">관리자 (Full CRUD)</option>
+                </select>
               </div>
 
               <div>
