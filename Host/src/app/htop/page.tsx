@@ -142,12 +142,16 @@ export default function HtopPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar 
-        onMenuClick={() => {}} 
+        agents={agents}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={setSelectedAgentId}
+        onOpenAddAgent={() => {}}
+        isAuthenticated={!!authToken}
         currentUser={currentUser} 
         currentUserRealName={currentUserRealName}
         currentUserRole={currentUserRole}
-        onLoginClick={() => {}}
-        onLogoutClick={() => {
+        onOpenLogin={() => {}}
+        onLogout={() => {
           setAuthToken(null);
           setCurrentUser(null);
           setCurrentUserRealName(null);
