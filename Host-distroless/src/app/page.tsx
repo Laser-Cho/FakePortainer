@@ -891,11 +891,12 @@ export default function Home() {
             isLoading={isLoading}
             onControl={handleControlContainer}
             onOpenLogs={setSelectedLogContainer}
+            currentUserRole={currentUserRole}
           />
         )}
 
         {activeTab === 'images' && (
-          <ImageTable images={images} isLoading={isLoading} onPrune={handlePruneImages} />
+          <ImageTable images={images} isLoading={isLoading} onPrune={handlePruneImages} currentUserRole={currentUserRole} />
         )}
 
         {activeTab === 'volumes' && (
@@ -904,6 +905,7 @@ export default function Home() {
             agents={agents}
             isLoading={isLoading}
             onDeleteVolume={(vol, ag) => setDeleteVolumeTarget({ volume: vol, agent: ag })}
+            currentUserRole={currentUserRole}
           />
         )}
 

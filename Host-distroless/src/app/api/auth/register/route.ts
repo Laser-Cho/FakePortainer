@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const clientIp = getClientIp(request);
   try {
     const body = await request.json();
-    const { username, password, name, email } = body;
+    const { username, password, name, email, role } = body;
 
     if (!username || !password || !name || !email) {
       return NextResponse.json(
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       password,
       name,
       email,
-      role: 'user', // Default role for public registration
+      role: role || 'user',
     });
 
     if (result.error) {

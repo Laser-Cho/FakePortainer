@@ -84,7 +84,7 @@ export interface VolumeInfo {
   agentUrl?: string;
 }
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'user' | 'monitor';
 
 export interface User {
   id: string;

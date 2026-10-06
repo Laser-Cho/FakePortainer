@@ -16,6 +16,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
   const { user } = getSessionUser(request);
+  if (!user || user.isLocked) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'monitor') return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+
   try {
     const body = await request.json();
     const { name, url, token } = body;
@@ -77,6 +80,9 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const clientIp = getClientIp(request);
   const { user } = getSessionUser(request);
+  if (!user || user.isLocked) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'monitor') return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+
   try {
     const body = await request.json();
     const { url, id } = body;

@@ -51,4 +51,39 @@ router.get('/logs', async (req, res) => {
   }
 });
 
+const si = require('systeminformation');
+
+// GET /api/system/htop - Fetch running processes and system resources
+router.get('/htop', async (req, res) => {
+  try {
+    const processes = await si.processes();
+    const cpu = await si.currentLoad();
+    const mem = await si.mem();
+    
+    // Sort logic will be handled by the frontend, but we can provide raw data
+    res.json({
+      cpu: {
+        load: cpu.currentLoad,
+        user: cpu.currentLoadUser,
+        sys: cpu.currentLoadSystem,
+      },
+      mem: {
+        total: mem.total,
+        used: mem.active,
+        free: mem.available,
+      },
+      processes: processes.list.map(p => ({
+        pid: p.pid,
+        name: p.name,
+        cpu: p.cpu,
+        mem: p.mem,
+        user: p.user,
+        state: p.state,
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to fetch htop data: ${err.message}` });
+  }
+});
+
 module.exports = router;

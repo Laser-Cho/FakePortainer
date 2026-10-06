@@ -9,6 +9,7 @@ interface VolumeTableProps {
   agents: AgentConfig[];
   isLoading: boolean;
   onDeleteVolume?: (volume: VolumeInfo, agent: AgentConfig) => void;
+  currentUserRole?: string | null;
 }
 
 export default function VolumeTable({
@@ -16,6 +17,7 @@ export default function VolumeTable({
   agents,
   isLoading,
   onDeleteVolume,
+  currentUserRole,
 }: VolumeTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
 

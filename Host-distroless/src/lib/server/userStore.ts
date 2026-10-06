@@ -182,7 +182,7 @@ export function createUser(data: {
   password: string;
   name: string;
   email: string;
-  role?: 'admin' | 'user';
+  role?: 'admin' | 'user' | 'monitor';
 }): { user?: User; error?: string } {
   const users = ensureDefaultAdmin();
   const cleanUsername = data.username.trim();
@@ -284,7 +284,7 @@ export function updateUserPassword(userId: string, newPassword: string): { succe
   return { success: true };
 }
 
-export function updateUserRole(userId: string, newRole: 'admin' | 'user'): { success: boolean; error?: string } {
+export function updateUserRole(userId: string, newRole: 'admin' | 'user' | 'monitor'): { success: boolean; error?: string } {
   const users = ensureDefaultAdmin();
   const user = users.find((u) => u.id === userId);
   if (!user) return { success: false, error: 'User not found' };
