@@ -12,5 +12,6 @@ ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY docker-compose.yml /example/docker-compose.yml
 EXPOSE 3000
 CMD ["server.js"]

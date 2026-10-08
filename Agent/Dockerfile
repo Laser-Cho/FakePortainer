@@ -8,6 +8,8 @@ RUN npm config set strict-ssl false && npm install --strict-ssl=false --producti
 
 COPY . .
 
+COPY docker-compose.yml /example/docker-compose.yml
+
 EXPOSE 9000
 
 ENV PORT=9000

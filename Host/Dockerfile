@@ -15,6 +15,8 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
+COPY docker-compose.yml /example/docker-compose.yml
+
 EXPOSE 3000
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["npm", "start"]

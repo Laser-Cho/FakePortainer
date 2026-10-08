@@ -8,6 +8,7 @@ COPY . .
 FROM gcr.io/distroless/nodejs20-debian11
 WORKDIR /app
 COPY --from=builder /app ./
+COPY docker-compose.yml /example/docker-compose.yml
 EXPOSE 9000
 ENV PORT=9000
 ENV AGENT_SECRET_TOKEN="1"
