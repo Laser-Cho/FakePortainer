@@ -3,6 +3,7 @@ services:
     image: lasercho/dockwatch-agent-distroless:latest
     container_name: dockwatch-agent
     restart: always
+    pid: "host"
     ports:
       - "9000:9000"
     volumes:
