@@ -96,7 +96,8 @@ export default function HtopPage() {
         body: JSON.stringify({
           agentUrl: agent.url,
           endpoint: '/api/system/htop',
-          method: 'GET'
+          method: 'GET',
+          headers: { Authorization: `Bearer ${agent.token}` }
         })
       });
       const data = await res.json();
