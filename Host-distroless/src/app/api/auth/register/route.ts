@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createUser } from '../../../../lib/server/userStore';
 import { addSystemLog, getClientIp } from '../../../../lib/server/systemLogStore';
+import { checkRateLimit } from '../../../../lib/server/rateLimit';
 
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
+
+  const rl = checkRateLimit(`register:${clientIp}`, 10, 10 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `요청이 너무 많습니다. ${rl.retryAfterSec}초 후 다시 시도해 주세요.` },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { username, password, name, email, role } = body;
@@ -15,12 +25,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Security policy: public self-registration cannot grant 'admin' role.
+    // Only 'monitor' or 'user' can be requested; admin promotion must be done by an existing admin.
+    const safeRole: 'user' | 'monitor' = role === 'monitor' ? 'monitor' : 'user';
+
     const result = createUser({
       username,
       password,
       name,
       email,
-      role: role || 'user',
+      role: safeRole,
     });
 
     if (result.error) {
@@ -44,7 +58,7 @@ export async function POST(request: Request) {
       category: 'USER_MGMT',
       level: 'INFO',
       action: 'USER_REGISTER',
-      detail: `신규 사용자 회원가입 완료: '${created.username}' (실명: ${created.name}, 이메일: ${created.email}, IP: ${clientIp})`,
+      detail: `신규 사용자 회원가입 완료: '${created.username}' (실명: ${created.name}, 이메일: ${created.email}, 초기역할: ${created.role}, IP: ${clientIp})`,
     });
 
     return NextResponse.json(
@@ -55,6 +69,7 @@ export async function POST(request: Request) {
           username: created.username,
           name: created.name,
           email: created.email,
+          role: created.role,
         },
       },
       { status: 201 }

@@ -1,77 +1,36 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import { HistoryLogItem } from '../../../lib/types';
 import { getClientIp, addSystemLog } from '../../../lib/server/systemLogStore';
 import { getSessionUser } from '../../../lib/server/session';
+import {
+  appendHistoryLog,
+  readHistoryLogs,
+  verifyHistoryLogsIntegrity,
+} from '../../../lib/server/historyStore';
 
-function getHistoryFilePath(): string {
-  const targetPath = process.env.HISTORY_LOG_PATH || '/app/history_log.bin';
-  try {
-    if (fs.existsSync(targetPath)) {
-      const stat = fs.statSync(targetPath);
-      if (stat.isFile()) return targetPath;
-      if (stat.isDirectory()) {
-        const innerFile = path.join(targetPath, 'data.bin');
-        if (!fs.existsSync(innerFile)) {
-          fs.writeFileSync(innerFile, '');
-        }
-        return innerFile;
-      }
-    } else {
-      fs.writeFileSync(targetPath, '');
-    }
-  } catch (e) {
-    return path.join(process.cwd(), 'history_log.bin');
+export const dynamic = 'force-dynamic';
+
+function escapeCsv(val: unknown): string {
+  const s = String(val ?? '');
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return `"${s.replace(/"/g, '""')}"`;
   }
-  return targetPath;
-}
-
-const MAGIC_HEADER = Buffer.from('DWPTHIST:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_History_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('DockWatch_History_IV_2026').digest();
-
-function readHistoryLogs(): HistoryLogItem[] {
-  const filePath = getHistoryFilePath();
-  try {
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return [];
-  } catch (e) {
-    return [];
-  }
-
-  try {
-    const buffer = fs.readFileSync(filePath);
-    let jsonStr = '';
-    if (buffer.length >= MAGIC_HEADER.length && buffer.subarray(0, MAGIC_HEADER.length).equals(MAGIC_HEADER)) {
-      const encryptedData = buffer.subarray(MAGIC_HEADER.length);
-      const decipher = crypto.createDecipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-      const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-      jsonStr = decrypted.toString('utf-8');
-    } else {
-      jsonStr = buffer.toString('utf-8');
-    }
-    return JSON.parse(jsonStr || '[]');
-  } catch (e) {
-    console.error('[History API] Failed to read history log', e);
-    return [];
-  }
-}
-
-function writeHistoryLogs(logs: HistoryLogItem[]): void {
-  const filePath = getHistoryFilePath();
-  const jsonStr = JSON.stringify(logs);
-  const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-  const encrypted = Buffer.concat([cipher.update(jsonStr, 'utf-8'), cipher.final()]);
-  const binaryBuffer = Buffer.concat([MAGIC_HEADER, encrypted]);
-  fs.writeFileSync(filePath, binaryBuffer);
+  return s;
 }
 
 export async function GET(request: Request) {
+  const clientIp = getClientIp(request);
+  const { session, user } = getSessionUser(request);
+
+  if (!session || !user) {
+    return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const agentName = searchParams.get('agentName');
   const actionType = searchParams.get('actionType');
   const limitStr = searchParams.get('limit');
+  const verify = searchParams.get('verify') === 'true';
+  const format = searchParams.get('format');
 
   let logs = readHistoryLogs();
 
@@ -82,7 +41,6 @@ export async function GET(request: Request) {
     logs = logs.filter((l) => l.actionType === actionType);
   }
 
-  // Sort newest first
   logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   if (limitStr) {
@@ -90,27 +48,72 @@ export async function GET(request: Request) {
     if (!isNaN(limit)) logs = logs.slice(0, limit);
   }
 
-  return NextResponse.json({ history: logs }, { headers: { 'Cache-Control': 'no-store' } });
+  if (format === 'csv') {
+    addSystemLog({
+      clientIp,
+      user: user.username,
+      userRealName: user.name,
+      category: 'EVENT',
+      level: 'INFO',
+      action: 'HISTORY_LOG_EXPORTED',
+      detail: `사용자 '${user.username}'가 작업 내역 CSV 파일(${logs.length}건)을 다운로드했습니다. (IP: ${clientIp})`,
+    });
+
+    const header = ['ID', 'Timestamp', 'User', 'RealName', 'ClientIP', 'AgentName', 'ActionType', 'Container', 'Detail', 'EntryHash'];
+    const rows = logs.map((l) =>
+      [
+        l.id,
+        l.timestamp,
+        l.user || '',
+        l.userRealName || '',
+        l.clientIp || '',
+        l.agentName,
+        l.actionType,
+        l.containerName || '',
+        l.detail,
+        l.entryHash || '',
+      ]
+        .map(escapeCsv)
+        .join(',')
+    );
+    const csv = '\uFEFF' + [header.join(','), ...rows].join('\n');
+    return new NextResponse(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="dockwatch-activity-history-${new Date().toISOString().slice(0, 10)}.csv"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  const integrity = verify ? verifyHistoryLogsIntegrity() : undefined;
+  return NextResponse.json({ history: logs, integrity }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: Request) {
   try {
     const clientIp = getClientIp(request);
-    const { user: sessionUser } = getSessionUser(request);
+    const { session, user: sessionUser } = getSessionUser(request);
+
+    if (!session || !sessionUser) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+    if (sessionUser.role === 'monitor') {
+      return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+    }
 
     const body = await request.json();
-    const { agentName, agentUrl, containerId, containerName, actionType, detail, user, userRealName } = body;
+    const { agentName, agentUrl, containerId, containerName, actionType, detail } = body;
 
     if (!actionType || !detail) {
       return NextResponse.json({ error: 'actionType and detail are required' }, { status: 400 });
     }
 
-    const resolvedUser = user || (sessionUser ? sessionUser.username : 'Admin');
-    const resolvedRealName = userRealName || (sessionUser ? sessionUser.name : undefined);
+    // Enforce authenticated operator identity (prevent spoofing another user)
+    const resolvedUser = sessionUser.username;
+    const resolvedRealName = sessionUser.name;
 
-    const newItem: HistoryLogItem = {
-      id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
+    const newItem = appendHistoryLog({
       agentName: agentName || 'System',
       agentUrl: agentUrl || '',
       containerId,
@@ -120,23 +123,15 @@ export async function POST(request: Request) {
       user: resolvedUser,
       userRealName: resolvedRealName,
       clientIp: clientIp || '127.0.0.1',
-    };
+    });
 
-    const currentLogs = readHistoryLogs();
-    currentLogs.push(newItem);
-
-    // Keep up to 5000 history entries
-    const trimmedLogs = currentLogs.slice(-5000);
-    writeHistoryLogs(trimmedLogs);
-
-    // Also dispatch to system logs
     try {
       addSystemLog({
         clientIp,
         user: resolvedUser,
         userRealName: resolvedRealName,
         category: 'OPERATION',
-        level: actionType.includes('DELETE') ? 'WARN' : 'INFO',
+        level: String(actionType).includes('DELETE') ? 'WARN' : 'INFO',
         action: actionType,
         detail: `[${agentName || 'Node'}] ${detail}`,
       });

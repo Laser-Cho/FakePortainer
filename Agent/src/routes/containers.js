@@ -2,6 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { docker } = require('../docker');
 
+const VALID_ID_REGEX = /^[a-zA-Z0-9_.-]{1,128}$/;
+
+router.param('id', (req, res, next, id) => {
+  if (!VALID_ID_REGEX.test(id)) {
+    return res.status(400).json({ error: 'Invalid container identifier' });
+  }
+  next();
+});
+
 // GET /api/containers - List all containers
 router.get('/', async (req, res) => {
   try {

@@ -1,13 +1,12 @@
 import { AgentConfig, ContainerInfo, ImageInfo, VolumeInfo } from './types';
 
-// Helper to send request to Host Proxy Route
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       ...options,
-      signal: controller.signal
+      signal: controller.signal,
     });
     clearTimeout(id);
     return response;
@@ -22,21 +21,28 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 
 export async function checkAgentHealth(agent: AgentConfig): Promise<boolean> {
   try {
-    const res = await fetchWithTimeout('/api/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        agentUrl: agent.url,
-        endpoint: '/health',
-        method: 'GET'
-      })
-    }, 5000);
+    const res = await fetchWithTimeout(
+      '/api/proxy',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Background-Poll': 'true',
+        },
+        body: JSON.stringify({
+          agentUrl: agent.url,
+          endpoint: '/health',
+          method: 'GET',
+        }),
+      },
+      5000
+    );
     if (!res.ok) {
       return false;
     }
     const data = await res.json();
     return data.status === 'ok';
-  } catch (err: any) {
+  } catch {
     return false;
   }
 }
@@ -49,10 +55,7 @@ export async function fetchContainers(agent: AgentConfig): Promise<ContainerInfo
       agentUrl: agent.url,
       endpoint: '/api/containers',
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -85,10 +88,7 @@ export async function controlContainer(
       agentUrl: agent.url,
       endpoint,
       method,
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
 
   if (!res.ok) {
@@ -105,10 +105,7 @@ export async function fetchImages(agent: AgentConfig): Promise<ImageInfo[]> {
       agentUrl: agent.url,
       endpoint: '/api/images',
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -126,10 +123,7 @@ export async function pruneImages(agent: AgentConfig): Promise<{ imagesDeleted: 
       agentUrl: agent.url,
       endpoint: '/api/images/prune',
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -146,10 +140,7 @@ export async function fetchVolumes(agent: AgentConfig): Promise<VolumeInfo[]> {
       agentUrl: agent.url,
       endpoint: '/api/volumes',
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -167,10 +158,7 @@ export async function deleteVolume(agent: AgentConfig, volumeName: string): Prom
       agentUrl: agent.url,
       endpoint: `/api/volumes/${encodeURIComponent(volumeName)}`,
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${agent.token}`
-      }
-    })
+    }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

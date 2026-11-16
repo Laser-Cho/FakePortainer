@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { getWatchListAgents } from '../../../../lib/server/agentStore';
 import { addSystemLog, getClientIp } from '../../../../lib/server/systemLogStore';
@@ -8,19 +9,37 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const clientIp = getClientIp(request);
-  const { user } = getSessionUser(request);
+  const { session, user } = getSessionUser(request);
+
+  // Support either authenticated user session OR dedicated CLUSTER_API_KEY header for external system integration
+  const apiKeyHeader = request.headers.get('x-api-key') || '';
+  const clusterApiKey = process.env.CLUSTER_API_KEY || '';
+  let validApiKey = false;
+  if (clusterApiKey && apiKeyHeader.length === clusterApiKey.length && apiKeyHeader.length > 0) {
+    validApiKey = crypto.timingSafeEqual(Buffer.from(apiKeyHeader), Buffer.from(clusterApiKey));
+  }
+
+  if ((!session || !user) && !validApiKey) {
+    addSystemLog({
+      clientIp,
+      user: 'anonymous',
+      category: 'ACCESS_DENIED',
+      level: 'WARN',
+      action: 'CLUSTER_API_UNAUTHORIZED',
+      detail: `미인증 상태에서 전 서버 컨테이너 상태 API(/api/cluster/containers) 호출 차단 (IP: ${clientIp})`,
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   try {
     const agents = getWatchListAgents();
 
-    // Fetch container data and health from all agents concurrently
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
 
         try {
-          // 1. Health check
           const healthRes = await fetch(`${agent.url}/health`, {
             method: 'GET',
             signal: controller.signal,
@@ -35,7 +54,6 @@ export async function GET(request: Request) {
             };
           }
 
-          // 2. Fetch containers
           const containersRes = await fetch(`${agent.url}/api/containers`, {
             method: 'GET',
             headers: {
@@ -57,7 +75,6 @@ export async function GET(request: Request) {
           const data = await containersRes.json();
           const rawContainers: ContainerInfo[] = data.containers || [];
 
-          // Attach node metadata
           const enriched = rawContainers.map((c) => ({
             ...c,
             agentName: agent.name,
@@ -100,11 +117,8 @@ export async function GET(request: Request) {
         const running = containers.filter((c) => c.state === 'running').length;
         const stopped = containers.length - running;
 
-        if (isOnline) {
-          onlineNodes++;
-        } else {
-          offlineNodes++;
-        }
+        if (isOnline) onlineNodes++;
+        else offlineNodes++;
 
         totalContainers += containers.length;
         runningContainers += running;
@@ -151,7 +165,7 @@ export async function GET(request: Request) {
 
     addSystemLog({
       clientIp,
-      user: user ? user.username : 'API_CLIENT',
+      user: user ? user.username : 'API_KEY_CLIENT',
       userRealName: user ? user.name : undefined,
       category: 'EVENT',
       level: 'INFO',

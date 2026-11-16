@@ -11,22 +11,49 @@ const containerRoutes = require('./routes/containers');
 const imageRoutes = require('./routes/images');
 const volumeRoutes = require('./routes/volumes');
 const setupLogStreamWebSocket = require('./websocket/logs');
-
 const systemRoutes = require('./routes/system');
 
 const app = express();
+app.disable('x-powered-by');
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 const PORT = process.env.PORT || 9000;
 
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Private-Network', 'true');
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'DENY');
+  res.header('Referrer-Policy', 'no-referrer');
+  res.header('Cache-Control', 'no-store');
+  if (allowedOrigins.length === 0) {
+    res.header('Access-Control-Allow-Private-Network', 'true');
+  }
   console.log(`[Agent Request] ${req.method} ${req.url} from ${req.ip}`);
   next();
 });
-app.use(cors());
-app.use(express.json());
+
+app.use(
+  cors(
+    allowedOrigins.length > 0
+      ? {
+          origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(new Error('CORS origin not allowed'));
+            }
+          },
+        }
+      : undefined
+  )
+);
+app.use(express.json({ limit: '1mb' }));
 
 // Public health check
 app.get('/health', (req, res) => {
@@ -48,4 +75,3 @@ server.listen(PORT, () => {
     console.warn(`[SECURITY WARNING] AGENT_SECRET_TOKEN is set to default '1'. Change AGENT_SECRET_TOKEN in production!`);
   }
 });
-

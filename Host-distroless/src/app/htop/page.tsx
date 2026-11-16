@@ -1,11 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
+import PasswordChangeModal from '../../components/PasswordChangeModal';
+import TwoFactorModal from '../../components/TwoFactorModal';
+import IdleTimeoutGuard from '../../components/IdleTimeoutGuard';
 import { AgentConfig } from '../../lib/types';
 import { checkAgentHealth } from '../../lib/api';
-import { Activity, Server, RefreshCw, Cpu, HardDrive, AlertCircle, Play } from 'lucide-react';
+import { Activity, Server, RefreshCw, HardDrive, AlertCircle, Lock } from 'lucide-react';
 
 interface ProcessInfo {
   pid: number;
@@ -25,19 +29,44 @@ interface SystemRes {
 export default function HtopPage() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  
+
   const [sysData, setSysData] = useState<SystemRes | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  
+
   const [sortBy, setSortBy] = useState<'cpu' | 'mem'>('cpu');
   const [sortDesc, setSortDesc] = useState(true);
 
-  // Auth State (Minimal since Navbar manages its own or we can just mock it if not passed)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentUserRealName, setCurrentUserRealName] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
+  const [isTwoFactorOpen, setIsTwoFactorOpen] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user && !data.user.requirePasswordChange) {
+            setAuthToken('authenticated');
+            setCurrentUser(data.user.username);
+            setCurrentUserRealName(data.user.name);
+            setCurrentUserRole(data.user.role);
+            setTwoFactorEnabled(!!data.user.twoFactorEnabled);
+          }
+        }
+      } catch {}
+      finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const fetchWatchListAgents = useCallback(async () => {
     try {
@@ -52,10 +81,13 @@ export default function HtopPage() {
   }, []);
 
   useEffect(() => {
-    fetchWatchListAgents();
-  }, [fetchWatchListAgents]);
+    if (authToken) {
+      fetchWatchListAgents();
+    }
+  }, [authToken, fetchWatchListAgents]);
 
   useEffect(() => {
+    if (!authToken) return;
     let isMounted = true;
     const checkHealth = async () => {
       setAgents((currentAgents) => {
@@ -77,14 +109,14 @@ export default function HtopPage() {
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [authToken]);
 
   const fetchHtopData = useCallback(async () => {
-    if (selectedAgentId === 'all') {
+    if (!authToken || selectedAgentId === 'all') {
       setSysData(null);
       return;
     }
-    const agent = agents.find(a => a.id === selectedAgentId);
+    const agent = agents.find((a) => a.id === selectedAgentId);
     if (!agent) return;
 
     setIsLoading(true);
@@ -92,12 +124,15 @@ export default function HtopPage() {
     try {
       const res = await fetch('/api/proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Background-Poll': 'true',
+        },
         body: JSON.stringify({
           agentUrl: agent.url,
           endpoint: '/api/system/htop',
-          method: 'GET'
-        })
+          method: 'GET',
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -110,13 +145,14 @@ export default function HtopPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAgentId, agents]);
+  }, [authToken, selectedAgentId, agents]);
 
   useEffect(() => {
+    if (!authToken) return;
     fetchHtopData();
-    const interval = setInterval(fetchHtopData, 5000); // Auto-refresh every 5s
+    const interval = setInterval(fetchHtopData, 5000);
     return () => clearInterval(interval);
-  }, [fetchHtopData]);
+  }, [authToken, fetchHtopData]);
 
   const handleSort = (field: 'cpu' | 'mem') => {
     if (sortBy === field) {
@@ -129,47 +165,81 @@ export default function HtopPage() {
 
   const sortedProcesses = React.useMemo(() => {
     if (!sysData || !sysData.processes) return [];
-    const sorted = [...sysData.processes].sort((a, b) => {
+    return [...sysData.processes].sort((a, b) => {
       const valA = a[sortBy] || 0;
       const valB = b[sortBy] || 0;
       return sortDesc ? valB - valA : valA - valB;
     });
-    return sorted;
   }, [sysData, sortBy, sortDesc]);
 
-  const selectedAgent = agents.find(a => a.id === selectedAgentId);
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3" />
+        <span>Verifying Authentication...</span>
+      </div>
+    );
+  }
+
+  if (!authToken) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-200">
+        <Lock className="w-10 h-10 text-blue-400 mb-3" />
+        <h2 className="text-lg font-bold mb-1">인증이 필요합니다</h2>
+        <p className="text-xs text-slate-400 mb-4">서버 상황 조회(htop) 페이지에 접근하려면 먼저 로그인해야 합니다.</p>
+        <Link href="/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl">
+          로그인 화면으로 이동
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar 
-        agents={agents}
-        selectedAgentId={selectedAgentId}
-        onSelectAgent={setSelectedAgentId}
-        onOpenAddAgent={() => {}}
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+      <IdleTimeoutGuard
         isAuthenticated={!!authToken}
-        currentUser={currentUser} 
-        currentUserRealName={currentUserRealName}
-        currentUserRole={currentUserRole}
-        onOpenLogin={() => {}}
-        onLogout={() => {
-          setAuthToken(null);
-          setCurrentUser(null);
-          setCurrentUserRealName(null);
-          setCurrentUserRole(null);
+        onSessionTerminated={() => {
           window.location.href = '/';
         }}
       />
 
-      <div className="flex flex-1 pt-[61px]">
+      <Navbar
+        agents={agents}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={setSelectedAgentId}
+        onOpenAddAgent={() => {
+          window.location.href = '/';
+        }}
+        isAuthenticated={!!authToken}
+        currentUser={currentUser}
+        currentUserRealName={currentUserRealName}
+        currentUserRole={currentUserRole}
+        twoFactorEnabled={twoFactorEnabled}
+        onOpenLogin={() => {
+          window.location.href = '/';
+        }}
+        onLogout={async () => {
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          window.location.href = '/';
+        }}
+        onOpenChangePassword={() => setIsPasswordChangeOpen(true)}
+        onOpenTwoFactor={() => setIsTwoFactorOpen(true)}
+      />
+
+      <div className="flex flex-1">
         <Sidebar
           agents={agents}
           selectedAgentId={selectedAgentId}
           onSelectAgent={setSelectedAgentId}
-          onOpenAddAgent={() => {}}
+          onOpenAddAgent={() => {
+            window.location.href = '/';
+          }}
+          currentUserRole={currentUserRole}
         />
 
         <main className="flex-1 p-6 overflow-y-auto">
-          {/* Header */}
           <div className="mb-6">
             <h1 className="text-xl font-bold flex items-center space-x-2">
               <Activity className="w-6 h-6 text-emerald-400" />
@@ -195,13 +265,13 @@ export default function HtopPage() {
                   </div>
                   {isLoading && <RefreshCw className="w-4 h-4 text-slate-400 animate-spin" />}
                 </div>
-                
+
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handleSort('cpu')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1 border ${
-                      sortBy === 'cpu' 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
+                      sortBy === 'cpu'
+                        ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
@@ -211,8 +281,8 @@ export default function HtopPage() {
                   <button
                     onClick={() => handleSort('mem')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1 border ${
-                      sortBy === 'mem' 
-                        ? 'bg-purple-600 border-purple-500 text-white' 
+                      sortBy === 'mem'
+                        ? 'bg-purple-600 border-purple-500 text-white'
                         : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
@@ -231,7 +301,6 @@ export default function HtopPage() {
 
               {sysData && (
                 <div className="space-y-4">
-                  {/* Summary Cards */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-center">
                       <div className="flex items-center space-x-2 mb-2 text-slate-400">
@@ -258,7 +327,6 @@ export default function HtopPage() {
                     </div>
                   </div>
 
-                  {/* Processes Table */}
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
@@ -280,12 +348,8 @@ export default function HtopPage() {
                               <td className="px-4 py-2 font-medium text-slate-200 truncate max-w-[200px]" title={proc.name}>
                                 {proc.name}
                               </td>
-                              <td className="px-4 py-2 font-mono text-xs text-emerald-400">
-                                {proc.cpu.toFixed(1)}%
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs text-purple-400">
-                                {proc.mem.toFixed(1)}%
-                              </td>
+                              <td className="px-4 py-2 font-mono text-xs text-emerald-400">{proc.cpu.toFixed(1)}%</td>
+                              <td className="px-4 py-2 font-mono text-xs text-purple-400">{proc.mem.toFixed(1)}%</td>
                               <td className="px-4 py-2">
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 uppercase tracking-wide">
                                   {proc.state || 'UNK'}
@@ -310,6 +374,20 @@ export default function HtopPage() {
           )}
         </main>
       </div>
+
+      {isPasswordChangeOpen && (
+        <PasswordChangeModal
+          isOpen={isPasswordChangeOpen}
+          onClose={() => setIsPasswordChangeOpen(false)}
+          username={currentUser || ''}
+        />
+      )}
+
+      <TwoFactorModal
+        isOpen={isTwoFactorOpen}
+        onClose={() => setIsTwoFactorOpen(false)}
+        onStatusChange={(enabled) => setTwoFactorEnabled(enabled)}
+      />
     </div>
   );
 }

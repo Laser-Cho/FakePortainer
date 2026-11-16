@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AgentConfig } from '../lib/types';
-import { Globe, Plus, ChevronRight, Server, History, Terminal, HardDrive, Activity } from 'lucide-react';
+import { Globe, Plus, History, Terminal, HardDrive, Activity } from 'lucide-react';
 
 interface SidebarProps {
   agents: AgentConfig[];
@@ -12,6 +12,7 @@ interface SidebarProps {
   onSelectAgent: (id: string) => void;
   onOpenAddAgent: () => void;
   onOpenServerLogs?: (agent: AgentConfig) => void;
+  currentUserRole?: string | null;
 }
 
 export default function Sidebar({
@@ -20,6 +21,7 @@ export default function Sidebar({
   onSelectAgent,
   onOpenAddAgent,
   onOpenServerLogs,
+  currentUserRole,
 }: SidebarProps) {
   const pathname = usePathname();
   const onlineCount = agents.filter((a) => a.isOnline).length;
@@ -30,7 +32,6 @@ export default function Sidebar({
   return (
     <aside className="w-64 md:w-72 bg-slate-900/80 border-r border-slate-800 flex flex-col shrink-0 min-h-[calc(100vh-61px)]">
       <div className="p-4 flex-1 space-y-6">
-        {/* Navigation Section */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 px-2">
             Navigation
@@ -49,9 +50,13 @@ export default function Sidebar({
                 <Globe className={`w-4 h-4 ${!isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all' ? 'text-white' : 'text-blue-400'}`} />
                 <span>All Nodes Cluster</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                !isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
-              }`}>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  !isHistoryActive && !isVolumesActive && !isHtopActive && selectedAgentId === 'all'
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
                 {agents.length} Nodes
               </span>
             </Link>
@@ -94,19 +99,20 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Individual Nodes Section */}
         <div>
           <div className="flex items-center justify-between mb-2 px-2">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Agent Nodes ({onlineCount}/{agents.length})
             </p>
-            <button
-              onClick={onOpenAddAgent}
-              className="text-slate-400 hover:text-blue-400 p-1 rounded hover:bg-slate-800 transition"
-              title="Add New Node"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
+            {currentUserRole !== 'monitor' && (
+              <button
+                onClick={onOpenAddAgent}
+                className="text-slate-400 hover:text-blue-400 p-1 rounded hover:bg-slate-800 transition"
+                title="Add New Node"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -161,17 +167,17 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Sidebar Footer */}
-      <div className="p-4 border-t border-slate-800">
-        <button
-          onClick={onOpenAddAgent}
-          className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 px-3 rounded-xl border border-slate-700 transition shadow-sm"
-        >
-          <Plus className="w-4 h-4 text-blue-400" />
-          <span>Register New Node</span>
-        </button>
-      </div>
+      {currentUserRole !== 'monitor' && (
+        <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={onOpenAddAgent}
+            className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 px-3 rounded-xl border border-slate-700 transition shadow-sm"
+          >
+            <Plus className="w-4 h-4 text-blue-400" />
+            <span>Register New Node</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
-

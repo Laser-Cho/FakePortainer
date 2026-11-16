@@ -7,16 +7,22 @@ import {
 } from '../../../../lib/server/userStore';
 import { getSessionUser } from '../../../../lib/server/session';
 import { addSystemLog, getClientIp } from '../../../../lib/server/systemLogStore';
+import { checkRateLimit } from '../../../../lib/server/rateLimit';
 
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
+
+  const rl = checkRateLimit(`chpw:${clientIp}`, 10, 5 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { username, currentPassword, newPassword } = body;
 
-    // Identify target user: from session or from request body
-    const { user: sessionUser } = getSessionUser(request);
-    const targetUsername = username ? username.trim() : (sessionUser ? sessionUser.username : '');
+    const { user: sessionUser } = getSessionUser(request, { allowExpiredPassword: true });
+    const targetUsername = sessionUser ? sessionUser.username : (username ? username.trim() : '');
 
     if (!targetUsername || !currentPassword || !newPassword) {
       return NextResponse.json(
@@ -30,7 +36,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // Verify current password
+    if (user.isLocked) {
+      return NextResponse.json(
+        { error: '잠긴 계정은 관리자의 잠금 해제 및 초기화 후 비밀번호를 변경할 수 있습니다.' },
+        { status: 403 }
+      );
+    }
+
+    // Verify current password (항목 10: 추가 본인 확인)
     const isMatch = verifyPassword(currentPassword, user.passwordHash, user.salt);
     if (!isMatch) {
       addSystemLog({
@@ -45,14 +58,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '현재 비밀번호가 일치하지 않습니다.' }, { status: 401 });
     }
 
-    // Validate new password complexity
-    const complexity = validatePasswordComplexity(newPassword);
+    const complexity = validatePasswordComplexity(newPassword, user.username);
     if (!complexity.valid) {
       return NextResponse.json({ error: complexity.reason }, { status: 400 });
-    }
-
-    if (currentPassword === newPassword) {
-      return NextResponse.json({ error: '새 비밀번호는 현재 비밀번호와 달라야 합니다.' }, { status: 400 });
     }
 
     const updateResult = updateUserPassword(user.id, newPassword);

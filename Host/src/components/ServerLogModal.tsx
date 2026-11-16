@@ -27,7 +27,6 @@ export default function ServerLogModal({ agent, isOpen, onClose }: ServerLogModa
           agentUrl: agent.url,
           endpoint: '/api/system/logs',
           method: 'GET',
-          headers: { Authorization: `Bearer ${agent.token}` }
         }),
       });
 

@@ -2,22 +2,43 @@ import { NextResponse } from 'next/server';
 import {
   readWatchListContent,
   writeWatchListContent,
-  parseAgentsFromFileContent,
+  getSafeWatchListAgents,
 } from '../../../lib/server/agentStore';
 import { addSystemLog, getClientIp } from '../../../lib/server/systemLogStore';
 import { getSessionUser } from '../../../lib/server/session';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
-  const fileContent = readWatchListContent();
-  const agents = parseAgentsFromFileContent(fileContent);
+  const { session, user } = getSessionUser(request, {
+    isBackgroundPoll: request.headers.get('x-background-poll') === 'true',
+  });
+  if (!session || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const agents = getSafeWatchListAgents();
   return NextResponse.json({ agents }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
 }
 
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
-  const { user } = getSessionUser(request);
-  if (!user || user.isLocked) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role === 'monitor') return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+  const { session, user } = getSessionUser(request);
+  if (!session || !user || user.isLocked) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (user.role === 'monitor') {
+    addSystemLog({
+      clientIp,
+      user: user.username,
+      userRealName: user.name,
+      category: 'ACCESS_DENIED',
+      level: 'WARN',
+      action: 'MONITOR_AGENT_ADD_DENIED',
+      detail: `모니터링 계정 '${user.username}'의 에이전트 노드 등록 시도 차단 (IP: ${clientIp})`,
+    });
+    return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -27,19 +48,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    let targetUrl = url.trim();
+    let targetUrl = String(url).trim();
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = `http://${targetUrl}`;
     }
     targetUrl = targetUrl.replace(/\/$/, '');
 
-    const targetName = (name || `Agent (${targetUrl})`).trim();
-    const targetToken = (token || '1').trim();
+    try {
+      const parsed = new URL(targetUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return NextResponse.json({ error: 'Invalid protocol' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: '유효한 에이전트 URL 형식이 아닙니다.' }, { status: 400 });
+    }
+
+    const targetName = String(name || `Agent (${targetUrl})`)
+      .replace(/[|\r\n]/g, '')
+      .trim();
+    const targetToken = String(token || '1')
+      .replace(/[|\r\n]/g, '')
+      .trim();
 
     const existingContent = readWatchListContent();
     const existingLines = existingContent ? existingContent.split(/\r?\n/) : [];
 
-    // Check if URL already exists
     const lineExists = existingLines.some((l) => {
       const trimmed = l.trim();
       if (!trimmed || trimmed.startsWith('#')) return false;
@@ -59,8 +92,8 @@ export async function POST(request: Request) {
 
       addSystemLog({
         clientIp,
-        user: user ? user.username : 'Admin',
-        userRealName: user ? user.name : undefined,
+        user: user.username,
+        userRealName: user.name,
         category: 'USER_MGMT',
         level: 'INFO',
         action: 'AGENT_NODE_ADDED',
@@ -68,8 +101,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const updatedContent = readWatchListContent();
-    const agents = parseAgentsFromFileContent(updatedContent);
+    const agents = getSafeWatchListAgents();
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API POST Error]', err);
@@ -79,9 +111,22 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const clientIp = getClientIp(request);
-  const { user } = getSessionUser(request);
-  if (!user || user.isLocked) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role === 'monitor') return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+  const { session, user } = getSessionUser(request);
+  if (!session || !user || user.isLocked) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (user.role === 'monitor') {
+    addSystemLog({
+      clientIp,
+      user: user.username,
+      userRealName: user.name,
+      category: 'ACCESS_DENIED',
+      level: 'WARN',
+      action: 'MONITOR_AGENT_DELETE_DENIED',
+      detail: `모니터링 계정 '${user.username}'의 에이전트 노드 삭제 시도 차단 (IP: ${clientIp})`,
+    });
+    return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -109,7 +154,7 @@ export async function DELETE(request: Request) {
       lineUrl = lineUrl.replace(/\/$/, '');
 
       if (url) {
-        let normalizedTarget = url.trim();
+        let normalizedTarget = String(url).trim();
         if (!normalizedTarget.startsWith('http://') && !normalizedTarget.startsWith('https://')) {
           normalizedTarget = `http://${normalizedTarget}`;
         }
@@ -126,16 +171,15 @@ export async function DELETE(request: Request) {
 
     addSystemLog({
       clientIp,
-      user: user ? user.username : 'Admin',
-      userRealName: user ? user.name : undefined,
+      user: user.username,
+      userRealName: user.name,
       category: 'USER_MGMT',
       level: 'WARN',
       action: 'AGENT_NODE_REMOVED',
       detail: `에이전트 노드 등록 해제: ${url || id} (IP: ${clientIp})`,
     });
 
-    const updatedContent = readWatchListContent();
-    const agents = parseAgentsFromFileContent(updatedContent);
+    const agents = getSafeWatchListAgents();
     return NextResponse.json({ agents, success: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     console.error('[WatchList API DELETE Error]', err);

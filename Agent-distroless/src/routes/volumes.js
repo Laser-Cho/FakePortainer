@@ -2,6 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { docker } = require('../docker');
 
+const VALID_VOL_REGEX = /^[a-zA-Z0-9_.-]{1,255}$/;
+
+router.param('name', (req, res, next, name) => {
+  if (!VALID_VOL_REGEX.test(name)) {
+    return res.status(400).json({ error: 'Invalid volume name' });
+  }
+  next();
+});
+
 // GET /api/volumes - List all volumes and mapping to attached containers
 router.get('/', async (req, res) => {
   try {

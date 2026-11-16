@@ -43,13 +43,15 @@ export default function ImageTable({ images, isLoading, onPrune, currentUserRole
           </span>
         </div>
 
-        <button
-          onClick={() => setIsPruneModalOpen(true)}
-          className="flex items-center space-x-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-950/50 border border-rose-900/80 px-3 py-1.5 rounded-lg hover:bg-rose-900/60 transition"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          <span>Prune Dangling Images</span>
-        </button>
+        {currentUserRole !== 'monitor' && (
+          <button
+            onClick={() => setIsPruneModalOpen(true)}
+            className="flex items-center space-x-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-950/50 border border-rose-900/80 px-3 py-1.5 rounded-lg hover:bg-rose-900/60 transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Prune Dangling Images</span>
+          </button>
+        )}
       </div>
 
       {images.length === 0 ? (
@@ -70,8 +72,8 @@ export default function ImageTable({ images, isLoading, onPrune, currentUserRole
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {images.map((img) => (
-                <tr key={img.id} className="hover:bg-slate-800/50 transition">
+              {images.map((img, idx) => (
+                <tr key={`${img.fullId}-${idx}`} className="hover:bg-slate-800/50 transition">
                   <td className="px-6 py-4 font-mono text-xs text-purple-300">{img.id}</td>
                   <td className="px-6 py-4 font-semibold text-slate-100 font-mono text-xs">
                     {img.repoTags.join(', ')}
@@ -87,7 +89,6 @@ export default function ImageTable({ images, isLoading, onPrune, currentUserRole
         </div>
       )}
 
-      {/* Prune Typing Confirmation Modal */}
       <ConfirmModal
         isOpen={isPruneModalOpen}
         onClose={() => setIsPruneModalOpen(false)}
@@ -101,4 +102,3 @@ export default function ImageTable({ images, isLoading, onPrune, currentUserRole
     </div>
   );
 }
-

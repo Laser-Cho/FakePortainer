@@ -31,9 +31,10 @@ export default function VolumeTable({
     );
   });
 
+  const canDelete = !!onDeleteVolume && currentUserRole !== 'monitor';
+
   return (
     <div className="space-y-4">
-      {/* Search & Counter Bar */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -51,7 +52,6 @@ export default function VolumeTable({
         </div>
       </div>
 
-      {/* Volume Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
         {isLoading ? (
           <div className="p-12 text-center">
@@ -74,7 +74,7 @@ export default function VolumeTable({
                   <th className="px-6 py-3.5">드라이버 (Driver)</th>
                   <th className="px-6 py-3.5">연결된 컨테이너 (Attached Containers)</th>
                   <th className="px-6 py-3.5">호스트 마운트 지점 (Mountpoint)</th>
-                  {onDeleteVolume && <th className="px-6 py-3.5 text-right">제어 (Actions)</th>}
+                  {canDelete && <th className="px-6 py-3.5 text-right">제어 (Actions)</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -83,7 +83,6 @@ export default function VolumeTable({
                     id: 'unknown',
                     name: vol.agentName || 'Unknown',
                     url: vol.agentUrl || '',
-                    token: '1',
                   };
 
                   return (
@@ -129,10 +128,10 @@ export default function VolumeTable({
                       <td className="px-6 py-4 font-mono text-[11px] text-slate-400 break-all max-w-xs">
                         {vol.mountpoint}
                       </td>
-                      {onDeleteVolume && (
+                      {canDelete && (
                         <td className="px-6 py-4 text-right">
                           <button
-                            onClick={() => onDeleteVolume(vol, agent)}
+                            onClick={() => onDeleteVolume!(vol, agent)}
                             className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-400 hover:text-rose-300 transition"
                             title="볼륨 삭제"
                           >

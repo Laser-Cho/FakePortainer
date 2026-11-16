@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AgentConfig } from '../lib/types';
-import { Server, Plus, Lock, LogOut, CheckCircle2, XCircle } from 'lucide-react';
+import { Server, Plus, Lock, LogOut, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
 
 interface NavbarProps {
   agents: AgentConfig[];
@@ -13,9 +13,11 @@ interface NavbarProps {
   currentUser?: string | null;
   currentUserRealName?: string | null;
   currentUserRole?: string | null;
+  twoFactorEnabled?: boolean;
   onOpenLogin: () => void;
   onLogout: () => void;
   onOpenChangePassword?: () => void;
+  onOpenTwoFactor?: () => void;
   appTitle?: string;
 }
 
@@ -28,9 +30,11 @@ export default function Navbar({
   currentUser,
   currentUserRealName,
   currentUserRole,
+  twoFactorEnabled,
   onOpenLogin,
   onLogout,
   onOpenChangePassword,
+  onOpenTwoFactor,
   appTitle = 'DockWatch',
 }: NavbarProps) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -38,104 +42,129 @@ export default function Navbar({
   return (
     <nav className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 sm:px-6 md:px-8 py-3.5 shadow-lg">
       <div className="max-w-[1920px] mx-auto flex items-center justify-between">
-      <div className="flex items-center space-x-3">
-        <div className="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
-          <Server className="w-5 h-5 text-blue-400" />
-        </div>
-        <div>
-          <span className="font-bold text-lg text-slate-100 tracking-wide">{appTitle}</span>
-          <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">
-            Control Plane
-          </span>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-1.5 space-x-2">
-          <Server className="w-4 h-4 text-slate-400" />
-          <select
-            value={selectedAgentId}
-            onChange={(e) => onSelectAgent(e.target.value)}
-            className="bg-transparent text-sm text-slate-200 focus:outline-none cursor-pointer pr-2"
-          >
-            {agents.length === 0 ? (
-              <option value="" disabled className="bg-slate-900 text-slate-400">
-                No Agents Registered
-              </option>
-            ) : (
-              agents.map((agent) => (
-                <option key={agent.id} value={agent.id} className="bg-slate-900 text-slate-200">
-                  {agent.name} ({agent.url})
-                </option>
-              ))
-            )}
-          </select>
-          {selectedAgent && (
-            <span className="flex items-center text-xs ml-1">
-              {selectedAgent.isOnline ? (
-                <span className="flex items-center text-emerald-400 font-medium">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Online
-                </span>
-              ) : (
-                <span className="flex items-center text-rose-400 font-medium">
-                  <XCircle className="w-3.5 h-3.5 mr-1" /> Offline
-                </span>
-              )}
+        <div className="flex items-center space-x-3">
+          <div className="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
+            <Server className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <span className="font-bold text-lg text-slate-100 tracking-wide">{appTitle}</span>
+            <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">
+              Control Plane
             </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-1.5 space-x-2">
+            <Server className="w-4 h-4 text-slate-400" />
+            <select
+              value={selectedAgentId}
+              onChange={(e) => onSelectAgent(e.target.value)}
+              className="bg-transparent text-sm text-slate-200 focus:outline-none cursor-pointer pr-2"
+            >
+              {agents.length === 0 ? (
+                <option value="" disabled className="bg-slate-900 text-slate-400">
+                  No Agents Registered
+                </option>
+              ) : (
+                agents.map((agent) => (
+                  <option key={agent.id} value={agent.id} className="bg-slate-900 text-slate-200">
+                    {agent.name} ({agent.url})
+                  </option>
+                ))
+              )}
+            </select>
+            {selectedAgent && (
+              <span className="flex items-center text-xs ml-1">
+                {selectedAgent.isOnline ? (
+                  <span className="flex items-center text-emerald-400 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Online
+                  </span>
+                ) : (
+                  <span className="flex items-center text-rose-400 font-medium">
+                    <XCircle className="w-3.5 h-3.5 mr-1" /> Offline
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          {currentUserRole !== 'monitor' && (
+            <button
+              onClick={onOpenAddAgent}
+              className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-3 py-1.5 rounded-lg border border-slate-700 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Agent</span>
+            </button>
+          )}
+
+          <div className="h-5 w-px bg-slate-800" />
+
+          {isAuthenticated ? (
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md font-mono flex items-center space-x-1.5">
+                <span>{currentUserRealName ? `${currentUserRealName} (${currentUser})` : currentUser || 'Operator'}</span>
+                {currentUserRole && (
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                      currentUserRole === 'admin'
+                        ? 'bg-amber-900/60 text-amber-300 border border-amber-700/60'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {currentUserRole}
+                  </span>
+                )}
+                {twoFactorEnabled && (
+                  <span className="text-[10px] font-bold px-1.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60">
+                    OTP
+                  </span>
+                )}
+              </span>
+
+              {onOpenTwoFactor && (
+                <button
+                  onClick={onOpenTwoFactor}
+                  title="2단계 인증 (M-OTP) 설정"
+                  className={`p-1.5 border rounded-lg transition ${
+                    twoFactorEnabled
+                      ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60 hover:bg-emerald-900/50'
+                      : 'text-slate-400 hover:text-emerald-400 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {onOpenChangePassword && (
+                <button
+                  onClick={onOpenChangePassword}
+                  title="비밀번호 재설정 / 변경"
+                  className="p-1.5 text-slate-400 hover:text-amber-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <button
+                onClick={onLogout}
+                className="flex items-center space-x-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-900/50 px-3 py-1.5 rounded-lg transition"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenLogin}
+              className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 bg-blue-950/40 border border-blue-900/50 px-3 py-1.5 rounded-lg transition"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Login</span>
+            </button>
           )}
         </div>
-
-        <button
-          onClick={onOpenAddAgent}
-          className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-3 py-1.5 rounded-lg border border-slate-700 transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Agent</span>
-        </button>
-
-        <div className="h-5 w-px bg-slate-800" />
-
-        {isAuthenticated ? (
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md font-mono flex items-center space-x-1.5">
-              <span>{currentUserRealName ? `${currentUserRealName} (${currentUser})` : currentUser || 'Admin'}</span>
-              {currentUserRole && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                  currentUserRole === 'admin' ? 'bg-amber-900/60 text-amber-300 border border-amber-700/60' : 'bg-slate-700 text-slate-300'
-                }`}>
-                  {currentUserRole}
-                </span>
-              )}
-            </span>
-
-            {onOpenChangePassword && (
-              <button
-                onClick={onOpenChangePassword}
-                title="비밀번호 재설정 / 변경"
-                className="p-1.5 text-slate-400 hover:text-amber-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition"
-              >
-                <Lock className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <button
-              onClick={onLogout}
-              className="flex items-center space-x-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-900/50 px-3 py-1.5 rounded-lg transition"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={onOpenLogin}
-            className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 bg-blue-950/40 border border-blue-900/50 px-3 py-1.5 rounded-lg transition"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Login</span>
-          </button>
-        )}
-      </div>
       </div>
     </nav>
   );

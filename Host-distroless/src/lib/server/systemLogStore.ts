@@ -2,22 +2,33 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { SystemLogCategory, SystemLogItem, SystemLogLevel } from '../types';
+import { computeLogChainHash, decryptBufferAuto, encryptTextGCM, normalizeIp } from './cryptoUtil';
 
-const MAGIC_HEADER = Buffer.from('DWPTSYSLOG:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_SysLog_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('DockWatch_SysLog_IV_2026').digest();
+const LEGACY_HEADER = Buffer.from('DWPTSYSLOG:', 'utf-8');
+const LEGACY_KEY = crypto.createHash('sha256').update('DockWatch_SysLog_Key_2026').digest();
+const LEGACY_IV = crypto.createHash('md5').update('DockWatch_SysLog_IV_2026').digest();
+
+const LONG_RETENTION_CATEGORIES: SystemLogCategory[] = [
+  'LOGIN_SUCCESS',
+  'LOGIN_FAILURE',
+  'ACCESS_DENIED',
+  'ROLE_CHANGE',
+  'USER_MGMT',
+  'SECURITY_ALERT',
+  'LOG_REVIEW',
+];
 
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
     const first = forwarded.split(',')[0].trim();
-    if (first) return first;
+    if (first) return normalizeIp(first);
   }
   const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
+  if (realIp) return normalizeIp(realIp);
 
   const cfIp = request.headers.get('cf-connecting-ip');
-  if (cfIp) return cfIp.trim();
+  if (cfIp) return normalizeIp(cfIp);
 
   return '127.0.0.1';
 }
@@ -55,6 +66,10 @@ function getSystemLogsFilePath(): string {
   } catch (e) {}
   const targetPath = process.env.SYSTEM_LOG_PATH || path.join(defaultDir, 'system_logs.bin');
   try {
+    const parentDir = path.dirname(targetPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
     if (!fs.existsSync(targetPath)) {
       fs.writeFileSync(targetPath, '');
     }
@@ -69,15 +84,11 @@ export function readSystemLogs(): SystemLogItem[] {
     const buffer = fs.readFileSync(filePath);
     if (buffer.length === 0) return [];
 
-    let jsonStr = '';
-    if (buffer.length >= MAGIC_HEADER.length && buffer.subarray(0, MAGIC_HEADER.length).equals(MAGIC_HEADER)) {
-      const encryptedData = buffer.subarray(MAGIC_HEADER.length);
-      const decipher = crypto.createDecipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-      const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-      jsonStr = decrypted.toString('utf-8');
-    } else {
-      jsonStr = buffer.toString('utf-8');
-    }
+    const jsonStr = decryptBufferAuto(buffer, 'syslogs', {
+      header: LEGACY_HEADER,
+      key: LEGACY_KEY,
+      iv: LEGACY_IV,
+    });
     return JSON.parse(jsonStr || '[]');
   } catch (e) {
     console.error('[SystemLogStore] Failed to read system logs', e);
@@ -85,15 +96,28 @@ export function readSystemLogs(): SystemLogItem[] {
   }
 }
 
+function applyRetentionPolicy(logs: SystemLogItem[]): SystemLogItem[] {
+  const generalDays = Math.max(365, parseInt(process.env.LOG_RETENTION_DAYS || '365', 10) || 365);
+  const authDays = Math.max(1825, parseInt(process.env.AUTH_LOG_RETENTION_DAYS || '1825', 10) || 1825);
+  const now = Date.now();
+  const generalCutoff = now - generalDays * 24 * 60 * 60 * 1000;
+  const authCutoff = now - authDays * 24 * 60 * 60 * 1000;
+
+  return logs
+    .filter((item) => {
+      const ts = new Date(item.timestamp).getTime();
+      if (isNaN(ts)) return true;
+      const cutoff = LONG_RETENTION_CATEGORIES.includes(item.category) ? authCutoff : generalCutoff;
+      return ts >= cutoff;
+    })
+    .slice(0, 100000);
+}
+
 function writeSystemLogs(logs: SystemLogItem[]): void {
   const filePath = getSystemLogsFilePath();
-  // Keep up to 20,000 entries
-  const trimmed = logs.slice(0, 20000);
-  const jsonStr = JSON.stringify(trimmed);
-  const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-  const encrypted = Buffer.concat([cipher.update(jsonStr, 'utf-8'), cipher.final()]);
-  const binaryBuffer = Buffer.concat([MAGIC_HEADER, encrypted]);
-  fs.writeFileSync(filePath, binaryBuffer);
+  const retained = applyRetentionPolicy(logs);
+  const binaryBuffer = encryptTextGCM(JSON.stringify(retained), 'syslogs');
+  fs.writeFileSync(filePath, binaryBuffer, { mode: 0o600 });
 }
 
 export function addSystemLog(entry: {
@@ -106,20 +130,74 @@ export function addSystemLog(entry: {
   detail: string;
 }): SystemLogItem {
   const logs = readSystemLogs();
-  const newLog: SystemLogItem = {
+  const prevHash = logs.length > 0 && logs[0].entryHash ? logs[0].entryHash : 'GENESIS';
+
+  const basePayload = {
     id: `syslog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     timestamp: new Date().toISOString(),
-    clientIp: entry.clientIp || '127.0.0.1',
+    clientIp: normalizeIp(entry.clientIp || '127.0.0.1'),
     user: entry.user || 'anonymous',
     userRealName: entry.userRealName,
     category: entry.category,
-    level: entry.level || (entry.category === 'LOGIN_FAILURE' || entry.category === 'ACCESS_DENIED' ? 'WARN' : 'INFO'),
+    level:
+      entry.level ||
+      (entry.category === 'LOGIN_FAILURE' || entry.category === 'ACCESS_DENIED' || entry.category === 'SECURITY_ALERT'
+        ? 'WARN'
+        : 'INFO'),
     action: entry.action,
     detail: entry.detail,
+  };
+
+  const entryHash = computeLogChainHash(prevHash, basePayload);
+  const newLog: SystemLogItem = {
+    ...basePayload,
+    prevHash,
+    entryHash,
   };
 
   // Add at the beginning (newest first)
   logs.unshift(newLog);
   writeSystemLogs(logs);
   return newLog;
+}
+
+export function verifySystemLogsIntegrity(): {
+  valid: boolean;
+  totalLogs: number;
+  verifiedCount: number;
+  legacyUnchainedCount: number;
+  tamperedIds: string[];
+} {
+  const logs = readSystemLogs();
+  // Stored newest-first; verify oldest -> newest
+  const chronological = [...logs].reverse();
+  const tamperedIds: string[] = [];
+  let verifiedCount = 0;
+  let legacyUnchainedCount = 0;
+  let expectedPrevHash = 'GENESIS';
+
+  for (const item of chronological) {
+    if (!item.entryHash) {
+      legacyUnchainedCount++;
+      expectedPrevHash = 'GENESIS';
+      continue;
+    }
+
+    const { prevHash, entryHash, ...rest } = item;
+    const recomputed = computeLogChainHash(prevHash || 'GENESIS', rest);
+    if (recomputed !== entryHash || (verifiedCount > 0 && prevHash !== expectedPrevHash)) {
+      tamperedIds.push(item.id);
+    } else {
+      verifiedCount++;
+    }
+    expectedPrevHash = entryHash;
+  }
+
+  return {
+    valid: tamperedIds.length === 0,
+    totalLogs: logs.length,
+    verifiedCount,
+    legacyUnchainedCount,
+    tamperedIds,
+  };
 }

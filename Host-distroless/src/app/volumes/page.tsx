@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import ConfirmModal from '../../components/ConfirmModal';
 import VolumeTable from '../../components/VolumeTable';
 import PasswordChangeModal from '../../components/PasswordChangeModal';
+import TwoFactorModal from '../../components/TwoFactorModal';
+import IdleTimeoutGuard from '../../components/IdleTimeoutGuard';
 import { AgentConfig, VolumeInfo } from '../../lib/types';
 import { checkAgentHealth, fetchVolumes, deleteVolume } from '../../lib/api';
-import { HardDrive, RefreshCw, Search, Server, Box, Trash2, Database, ShieldAlert, Layers } from 'lucide-react';
+import { HardDrive, RefreshCw, ShieldAlert, Lock } from 'lucide-react';
 
 export default function VolumesPage() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
@@ -16,19 +19,17 @@ export default function VolumesPage() {
   const [volumes, setVolumes] = useState<VolumeInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ volume: VolumeInfo; agent: AgentConfig } | null>(null);
 
-  // Modals & Auth State
-  const [isAddAgentOpen, setIsAddAgentOpen] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
+  const [isTwoFactorOpen, setIsTwoFactorOpen] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentUserRealName, setCurrentUserRealName] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   const fetchWatchListAgents = useCallback(async () => {
     try {
@@ -43,11 +44,35 @@ export default function VolumesPage() {
   }, []);
 
   useEffect(() => {
-    fetchWatchListAgents();
-  }, [fetchWatchListAgents]);
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user && !data.user.requirePasswordChange) {
+            setAuthToken('authenticated');
+            setCurrentUser(data.user.username);
+            setCurrentUserRealName(data.user.name);
+            setCurrentUserRole(data.user.role);
+            setTwoFactorEnabled(!!data.user.twoFactorEnabled);
+          }
+        }
+      } catch {}
+      finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
-  // Periodic agent health check
   useEffect(() => {
+    if (authToken) {
+      fetchWatchListAgents();
+    }
+  }, [authToken, fetchWatchListAgents]);
+
+  useEffect(() => {
+    if (!authToken) return;
     let isMounted = true;
 
     const checkHealth = async () => {
@@ -62,9 +87,7 @@ export default function VolumesPage() {
         ).then((updated) => {
           if (!isMounted) return;
           setAgents((latest) => {
-            const changed = latest.some(
-              (item, i) => updated[i] && item.isOnline !== updated[i].isOnline
-            );
+            const changed = latest.some((item, i) => updated[i] && item.isOnline !== updated[i].isOnline);
             if (!changed) return latest;
             return latest.map((item, i) => ({
               ...item,
@@ -83,26 +106,7 @@ export default function VolumesPage() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
-
-  // Check Auth
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.authenticated && data.user) {
-            setAuthToken('authenticated');
-            setCurrentUser(data.user.username);
-            setCurrentUserRealName(data.user.name);
-            setCurrentUserRole(data.user.role);
-          }
-        }
-      } catch (e) {}
-    };
-    checkAuth();
-  }, []);
+  }, [authToken]);
 
   const recordHistory = async (
     agentName: string,
@@ -119,8 +123,6 @@ export default function VolumesPage() {
           agentUrl,
           actionType,
           detail,
-          user: currentUser || 'Admin',
-          userRealName: currentUserRealName,
         }),
       });
     } catch (e) {
@@ -129,6 +131,7 @@ export default function VolumesPage() {
   };
 
   const loadVolumes = useCallback(async () => {
+    if (!authToken) return;
     setIsLoading(true);
     setErrorMsg('');
 
@@ -151,15 +154,13 @@ export default function VolumesPage() {
                 agentName: ag.name,
                 agentUrl: ag.url,
               }));
-            } catch (err: any) {
-              console.error(`Error fetching volumes from ${ag.name}:`, err.message);
+            } catch {
               return [];
             }
           })
         );
 
-        const allVols = volumeResults.flat();
-        setVolumes(allVols);
+        setVolumes(volumeResults.flat());
       } else {
         const targetAgent = agents.find((a) => a.id === selectedAgentId);
         if (!targetAgent) {
@@ -182,13 +183,13 @@ export default function VolumesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [agents, selectedAgentId]);
+  }, [authToken, agents, selectedAgentId]);
 
   useEffect(() => {
-    if (agents.length > 0) {
+    if (authToken && agents.length > 0) {
       loadVolumes();
     }
-  }, [agents, selectedAgentId, loadVolumes]);
+  }, [authToken, agents, selectedAgentId, loadVolumes]);
 
   const handleDeleteVolumeConfirm = async () => {
     if (!deleteTarget) return;
@@ -196,7 +197,7 @@ export default function VolumesPage() {
 
     try {
       await deleteVolume(agent, volume.name);
-      await recordHistory(agent.name, agent.url, 'DELETE_VOLUME', `Deleted volume '${volume.name}'`);
+      await recordHistory(agent.name, agent.url, 'VOLUME_DELETE', `Deleted volume '${volume.name}'`);
       await loadVolumes();
     } catch (err: any) {
       alert(`볼륨 삭제 실패: ${err.message}`);
@@ -208,20 +209,9 @@ export default function VolumesPage() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (e) {}
-    setAuthToken(null);
-    setCurrentUser(null);
+    } catch {}
+    window.location.href = '/';
   };
-
-  const filteredVolumes = volumes.filter((v) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      v.name.toLowerCase().includes(query) ||
-      v.driver.toLowerCase().includes(query) ||
-      (v.agentName && v.agentName.toLowerCase().includes(query)) ||
-      v.attachedContainers.some((c) => c.name.toLowerCase().includes(query))
-    );
-  });
 
   const [appTitle, setAppTitle] = useState<string>('DockWatch');
 
@@ -237,21 +227,56 @@ export default function VolumesPage() {
       .catch(() => {});
   }, []);
 
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3" />
+        <span>Verifying Authentication...</span>
+      </div>
+    );
+  }
+
+  if (!authToken) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-200">
+        <Lock className="w-10 h-10 text-blue-400 mb-3" />
+        <h2 className="text-lg font-bold mb-1">인증이 필요합니다</h2>
+        <p className="text-xs text-slate-400 mb-4">볼륨 관리 페이지에 접근하려면 먼저 로그인해야 합니다.</p>
+        <Link href="/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl">
+          로그인 화면으로 이동
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <IdleTimeoutGuard
+        isAuthenticated={!!authToken}
+        onSessionTerminated={() => {
+          window.location.href = '/';
+        }}
+      />
+
       <Navbar
         appTitle={appTitle}
         agents={agents}
         selectedAgentId={selectedAgentId}
         onSelectAgent={setSelectedAgentId}
-        onOpenAddAgent={() => setIsAddAgentOpen(true)}
+        onOpenAddAgent={() => {
+          window.location.href = '/';
+        }}
         isAuthenticated={!!authToken}
         currentUser={currentUser}
         currentUserRealName={currentUserRealName}
         currentUserRole={currentUserRole}
-        onOpenLogin={() => setIsLoginOpen(true)}
+        twoFactorEnabled={twoFactorEnabled}
+        onOpenLogin={() => {
+          window.location.href = '/';
+        }}
         onLogout={handleLogout}
         onOpenChangePassword={() => setIsPasswordChangeOpen(true)}
+        onOpenTwoFactor={() => setIsTwoFactorOpen(true)}
       />
 
       <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-h-[calc(100vh-61px)]">
@@ -259,7 +284,10 @@ export default function VolumesPage() {
           agents={agents}
           selectedAgentId={selectedAgentId}
           onSelectAgent={setSelectedAgentId}
-          onOpenAddAgent={() => setIsAddAgentOpen(true)}
+          onOpenAddAgent={() => {
+            window.location.href = '/';
+          }}
+          currentUserRole={currentUserRole}
         />
 
         <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8">
@@ -291,17 +319,16 @@ export default function VolumesPage() {
             </div>
           )}
 
-          {/* Volume Table Component */}
           <VolumeTable
             volumes={volumes}
             agents={agents}
             isLoading={isLoading}
             onDeleteVolume={(volume, agent) => setDeleteTarget({ volume, agent })}
+            currentUserRole={currentUserRole}
           />
         </main>
       </div>
 
-      {/* Delete Volume Confirm Modal with Strict Name Matching */}
       {deleteTarget && (
         <ConfirmModal
           isOpen={!!deleteTarget}
@@ -322,6 +349,12 @@ export default function VolumesPage() {
           username={currentUser || ''}
         />
       )}
+
+      <TwoFactorModal
+        isOpen={isTwoFactorOpen}
+        onClose={() => setIsTwoFactorOpen(false)}
+        onStatusChange={(enabled) => setTwoFactorEnabled(enabled)}
+      />
     </div>
   );
 }

@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
-import { readSystemLogs, addSystemLog, getClientIp } from '../../../lib/server/systemLogStore';
+import {
+  readSystemLogs,
+  addSystemLog,
+  getClientIp,
+  verifySystemLogsIntegrity,
+} from '../../../lib/server/systemLogStore';
 import { getSessionUser } from '../../../lib/server/session';
 
 export const dynamic = 'force-dynamic';
+
+function escapeCsv(val: unknown): string {
+  const s = String(val ?? '');
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
 
 export async function GET(request: Request) {
   const { session, user } = getSessionUser(request);
@@ -12,12 +25,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
   }
 
+  // Only admin can access/download full system security logs (항목 25-③④)
+  if (user.role !== 'admin') {
+    addSystemLog({
+      clientIp,
+      user: user.username,
+      userRealName: user.name,
+      category: 'ACCESS_DENIED',
+      level: 'ERROR',
+      action: 'SYSTEM_LOG_ACCESS_DENIED',
+      detail: `비관리자 계정 '${user.username}' (${user.role})의 시스템 보안 로그 열람 시도 차단 (IP: ${clientIp})`,
+    });
+    return NextResponse.json({ error: '시스템 보안 로그는 관리자만 조회할 수 있습니다.' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category');
   const level = searchParams.get('level');
   const userFilter = searchParams.get('user');
   const search = searchParams.get('search');
   const limitStr = searchParams.get('limit') || '500';
+  const verify = searchParams.get('verify') === 'true';
+  const format = searchParams.get('format');
 
   let logs = readSystemLogs();
 
@@ -43,20 +72,52 @@ export async function GET(request: Request) {
   }
 
   const limit = parseInt(limitStr, 10);
-  if (!isNaN(limit) && limit > 0) {
+  if (!format && !isNaN(limit) && limit > 0) {
     logs = logs.slice(0, limit);
   }
 
-  return NextResponse.json({ logs }, { headers: { 'Cache-Control': 'no-store' } });
+  if (format === 'csv') {
+    addSystemLog({
+      clientIp,
+      user: user.username,
+      userRealName: user.name,
+      category: 'EVENT',
+      level: 'WARN',
+      action: 'SYSTEM_LOG_EXPORTED',
+      detail: `관리자 '${user.username}'가 시스템 보안 로그 CSV 파일(${logs.length}건)을 다운로드했습니다. (IP: ${clientIp})`,
+    });
+
+    const header = ['ID', 'Timestamp', 'Category', 'Level', 'ClientIP', 'User', 'RealName', 'Action', 'Detail', 'EntryHash'];
+    const rows = logs.map((l) =>
+      [l.id, l.timestamp, l.category, l.level, l.clientIp, l.user, l.userRealName || '', l.action, l.detail, l.entryHash || '']
+        .map(escapeCsv)
+        .join(',')
+    );
+    const csv = '\uFEFF' + [header.join(','), ...rows].join('\n');
+    return new NextResponse(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="dockwatch-system-logs-${new Date().toISOString().slice(0, 10)}.csv"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  const integrity = verify ? verifySystemLogsIntegrity() : undefined;
+  return NextResponse.json({ logs, integrity }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
-  const { user } = getSessionUser(request);
+  const { session, user } = getSessionUser(request);
+
+  if (!session || !user) {
+    return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+  }
 
   try {
     const body = await request.json();
-    const { category, action, detail, level, customUser } = body;
+    const { category, action, detail, level } = body;
 
     if (!category || !action || !detail) {
       return NextResponse.json({ error: 'category, action, and detail are required' }, { status: 400 });
@@ -64,8 +125,8 @@ export async function POST(request: Request) {
 
     const log = addSystemLog({
       clientIp,
-      user: customUser || (user ? user.username : 'anonymous'),
-      userRealName: user ? user.name : undefined,
+      user: user.username,
+      userRealName: user.name,
       category,
       level,
       action,

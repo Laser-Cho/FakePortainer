@@ -19,39 +19,69 @@ export default function LogViewerModal({ container, agent, onClose }: LogViewerM
   useEffect(() => {
     if (!container || !agent) return;
 
+    let cancelled = false;
     setLogs([]);
     setIsStreaming(true);
 
-    // Convert http/https URL to ws/wss
-    const wsBaseUrl = agent.url.replace(/^http/, 'ws');
-    const wsUrl = `${wsBaseUrl}/api/containers/${container.id}/logs?token=${encodeURIComponent(agent.token)}`;
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
+    const connectWebSocket = async () => {
       try {
-        const payload = JSON.parse(event.data);
-        if (payload.data) {
-          setLogs((prev) => [...prev, payload.data]);
+        const tokenRes = await fetch('/api/ws-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentUrl: agent.url, containerId: container.id }),
+        });
+
+        if (!tokenRes.ok) {
+          const errData = await tokenRes.json().catch(() => ({}));
+          if (!cancelled) {
+            setLogs((prev) => [...prev, `[ERR] Failed to obtain WS session token: ${errData.error || tokenRes.status}\n`]);
+            setIsStreaming(false);
+          }
+          return;
         }
-      } catch {
-        setLogs((prev) => [...prev, event.data]);
+
+        const { wsToken } = await tokenRes.json();
+        if (cancelled) return;
+
+        const wsBaseUrl = agent.url.replace(/^http/, 'ws');
+        const wsUrl = `${wsBaseUrl}/api/containers/${container.id}/logs?token=${encodeURIComponent(wsToken)}`;
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.data) {
+              setLogs((prev) => [...prev, payload.data]);
+            }
+          } catch {
+            setLogs((prev) => [...prev, event.data]);
+          }
+        };
+
+        ws.onerror = () => {
+          setLogs((prev) => [...prev, '\n[ERR] WebSocket connection error']);
+        };
+
+        ws.onclose = () => {
+          setIsStreaming(false);
+          setLogs((prev) => [...prev, '\n[INFO] WebSocket stream closed']);
+        };
+      } catch (err: any) {
+        if (!cancelled) {
+          setLogs((prev) => [...prev, `\n[ERR] ${err.message || 'WebSocket init error'}`]);
+          setIsStreaming(false);
+        }
       }
     };
 
-    ws.onerror = () => {
-      setLogs((prev) => [...prev, '\n[ERR] WebSocket connection error']);
-    };
-
-    ws.onclose = () => {
-      setIsStreaming(false);
-      setLogs((prev) => [...prev, '\n[INFO] WebSocket stream closed']);
-    };
+    connectWebSocket();
 
     return () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
+      cancelled = true;
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
       }
     };
   }, [container, agent]);
@@ -67,7 +97,6 @@ export default function LogViewerModal({ container, agent, onClose }: LogViewerM
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-slate-950 border border-slate-800 rounded-xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden">
-        {/* Terminal Header */}
         <div className="bg-slate-900 border-b border-slate-800 px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Terminal className="w-5 h-5 text-emerald-400" />
@@ -117,7 +146,6 @@ export default function LogViewerModal({ container, agent, onClose }: LogViewerM
           </div>
         </div>
 
-        {/* Log Stream Content */}
         <div className="flex-1 bg-black p-4 font-mono text-xs text-slate-200 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text">
           {logs.length === 0 ? (
             <div className="text-slate-500 italic">Waiting for log stream output...</div>

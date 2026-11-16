@@ -2,25 +2,22 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { AgentConfig } from '../types';
+import { decryptBufferAuto, encryptTextGCM } from './cryptoUtil';
 
-const MAGIC_HEADER = Buffer.from('DWPT_BIN:', 'utf-8');
-const SECRET_KEY = crypto.createHash('sha256').update('DockWatch_Secret_Key_2026').digest();
-const SECRET_IV = crypto.createHash('md5').update('DockWatch_IV_2026').digest();
+const LEGACY_HEADER = Buffer.from('DWPT_BIN:', 'utf-8');
+const LEGACY_KEY = crypto.createHash('sha256').update('DockWatch_Secret_Key_2026').digest();
+const LEGACY_IV = crypto.createHash('md5').update('DockWatch_IV_2026').digest();
 
 export function encryptTextToBinary(text: string): Buffer {
-  const cipher = crypto.createCipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-  const encrypted = Buffer.concat([cipher.update(text, 'utf-8'), cipher.final()]);
-  return Buffer.concat([MAGIC_HEADER, encrypted]);
+  return encryptTextGCM(text, 'agents');
 }
 
 export function decryptBinaryToText(buffer: Buffer): string {
-  if (buffer.length >= MAGIC_HEADER.length && buffer.subarray(0, MAGIC_HEADER.length).equals(MAGIC_HEADER)) {
-    const encryptedData = buffer.subarray(MAGIC_HEADER.length);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', SECRET_KEY, SECRET_IV);
-    const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-    return decrypted.toString('utf-8');
-  }
-  return buffer.toString('utf-8');
+  return decryptBufferAuto(buffer, 'agents', {
+    header: LEGACY_HEADER,
+    key: LEGACY_KEY,
+    iv: LEGACY_IV,
+  });
 }
 
 export function getWatchListFilePath(): string {
@@ -50,8 +47,20 @@ export function getWatchListFilePath(): string {
       }
     } catch (e) {}
   }
-  const defaultPath = process.env.WATCH_LIST_PATH || '/app/watch_list.txt';
+
+  const defaultDir = path.join(process.cwd(), 'data');
   try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+  } catch (e) {}
+
+  const defaultPath = process.env.WATCH_LIST_PATH || path.join(defaultDir, 'watch_list.bin');
+  try {
+    const parentDir = path.dirname(defaultPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
     if (!fs.existsSync(defaultPath)) {
       fs.writeFileSync(defaultPath, '');
     }
@@ -127,10 +136,23 @@ export function readWatchListContent(): string {
 export function writeWatchListContent(content: string): void {
   const filePath = getWatchListFilePath();
   const binaryBuffer = encryptTextToBinary(content);
-  fs.writeFileSync(filePath, binaryBuffer);
+  fs.writeFileSync(filePath, binaryBuffer, { mode: 0o600 });
 }
 
 export function getWatchListAgents(): AgentConfig[] {
   const content = readWatchListContent();
   return parseAgentsFromFileContent(content);
+}
+
+/**
+ * Returns agent list safe for client responses (never leaks raw secret token).
+ */
+export function getSafeWatchListAgents(): AgentConfig[] {
+  return getWatchListAgents().map((ag) => ({
+    id: ag.id,
+    name: ag.name,
+    url: ag.url,
+    hasToken: !!ag.token,
+    isOnline: ag.isOnline,
+  }));
 }

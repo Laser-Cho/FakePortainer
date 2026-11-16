@@ -2,7 +2,8 @@ export interface AgentConfig {
   id: string;
   name: string;
   url: string; // e.g. http://localhost:9000
-  token: string;
+  token?: string;
+  hasToken?: boolean;
   isOnline?: boolean;
 }
 
@@ -61,11 +62,24 @@ export interface HistoryLogItem {
   agentUrl: string;
   containerId?: string;
   containerName?: string;
-  actionType: 'START' | 'STOP' | 'RESTART' | 'DELETE' | 'PRUNE_IMAGES' | 'ADD_AGENT' | 'REMOVE_AGENT' | 'DETECTED_CHANGE' | 'VOLUME_DELETE' | string;
+  actionType:
+    | 'START'
+    | 'STOP'
+    | 'RESTART'
+    | 'DELETE'
+    | 'PRUNE_IMAGES'
+    | 'ADD_AGENT'
+    | 'REMOVE_AGENT'
+    | 'DETECTED_CHANGE'
+    | 'VOLUME_DELETE'
+    | 'DELETE_VOLUME'
+    | string;
   detail: string;
   user?: string;
   userRealName?: string;
   clientIp?: string;
+  prevHash?: string;
+  entryHash?: string;
 }
 
 export interface VolumeAttachedContainer {
@@ -93,13 +107,23 @@ export interface User {
   email: string; // Email (이메일)
   passwordHash: string;
   salt: string;
+  passwordHistory?: { hash: string; salt: string }[];
   role: UserRole;
   createdAt: string;
   passwordChangedAt: string;
   failedLoginAttempts: number;
   isLocked: boolean;
+  lockReason?: string;
+  mustChangePassword?: boolean;
   lastLoginAt?: string;
   lastLoginIp?: string;
+  activeSessionId?: string;
+  activeSessionIp?: string;
+  lastActivityAt?: string;
+  reauthVerifiedAt?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
+  allowedIps?: string[];
 }
 
 export interface UserProfile {
@@ -111,7 +135,15 @@ export interface UserProfile {
   createdAt: string;
   passwordChangedAt: string;
   isLocked: boolean;
+  lockReason?: string;
+  mustChangePassword?: boolean;
   requirePasswordChange?: boolean;
+  failedLoginAttempts?: number;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+  twoFactorEnabled?: boolean;
+  allowedIps?: string[];
+  isReservedUsername?: boolean;
 }
 
 export type SystemLogCategory =
@@ -121,7 +153,9 @@ export type SystemLogCategory =
   | 'USER_MGMT'
   | 'ROLE_CHANGE'
   | 'OPERATION'
-  | 'EVENT';
+  | 'EVENT'
+  | 'SECURITY_ALERT'
+  | 'LOG_REVIEW';
 
 export type SystemLogLevel = 'INFO' | 'WARN' | 'ERROR';
 
@@ -135,6 +169,8 @@ export interface SystemLogItem {
   level: SystemLogLevel;
   action: string;
   detail: string;
+  prevHash?: string;
+  entryHash?: string;
 }
 
 export interface ClusterNodeSummary {
@@ -160,4 +196,3 @@ export interface ClusterStatusResponse {
   nodes: ClusterNodeSummary[];
   containers: ContainerInfo[];
 }
-
